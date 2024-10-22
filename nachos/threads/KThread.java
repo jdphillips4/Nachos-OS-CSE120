@@ -190,11 +190,19 @@ public class KThread {
 	 * other execution state are still in use. Instead, this thread will be
 	 * destroyed automatically by the next thread to run, when it is safe to
 	 * delete this thread.
+	 * a will enter here, change it to make b wake up
 	 */
 	public static void finish() {
+		//ref b. add b thread var somewhere
+		//bThread.
 		Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
 
 		Machine.interrupt().disable();
+
+		if ( parent != null ) {
+			parent.ready();
+			parent = null;
+		}
 
 		Machine.autoGrader().finishingCurrentThread();
 
@@ -276,15 +284,113 @@ public class KThread {
 	}
 
 	/**
+	 * Tests whether this module is working.
+	 */
+	public static void selfTest() {
+		Lib.debug(dbgThread, "Enter KThread.selfTest");
+		joinTest1(); 
+		joinTest2();
+		joinTest3();
+		joinTest4();
+		new KThread(new PingTest(1)).setName("forked thread").fork();
+		new PingTest(0).run();
+	}
+    
+    // Simple test for the situation where the child finishes before
+    // the parent calls join on it.
+    private static void joinTest1() {
+		KThread child1 = new KThread( new Runnable () {
+			public void run() {
+				System.out.println("I (heart) Nachos!");
+			}
+			});
+		child1.setName("child1").fork();
+	
+		// We want the child to finish before we call join.  Although
+		// our solutions to the problems cannot busy wait, our test
+		// programs can!
+	
+		for (int i = 0; i < 5; i++) {
+			System.out.println ("busy...");
+			KThread.currentThread().yield();
+		}
+	
+		child1.join();
+		System.out.println("joinTest1");
+		System.out.println("is it? " + (child1.status == statusFinished));
+		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+	}
+
+	// test method when the child is still running
+	private static void joinTest2() {
+		KThread child1 = new KThread( new Runnable () {
+			public void run() {
+				float count = 0;
+				for(int i=0; i<25; i++) {
+					count *= 1.62;
+				}
+			}
+			});
+		child1.setName("child1").fork();
+		// join while child1 is running
+		child1.join();
+		System.out.println("joinTest2");
+		System.out.println("is it? " + (child1.status == statusFinished));
+		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+	}
+
+	// calling join on itself is bad
+	private static void joinTest3() {
+		System.out.println("joinTest3!");
+		// this will throw an error
+		//currentThread.join();
+	}
+
+	private static void joinTest4() {
+		KThread child1 = new KThread( new Runnable () {
+			public void run() {
+				int count = 0;
+			}
+			});
+		KThread child2 = new KThread( new Runnable () {
+			public void run() {
+				float count = 0;
+				for(int i=0; i<25; i++) {
+					count *= 1.62;
+				}
+			}
+			});
+		child1.setName("child1").fork();
+		child2.setName("child2").fork();
+		// join while child1 is running
+		child1.join();
+		child2.join();
+		System.out.println("joinTest4");
+		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
+		System.out.println("joinTest4 passed!");
+	}
+
+	/**
 	 * Waits for this thread to finish. If this thread is already finished,
 	 * return immediately. This method must only be called once; the second call
 	 * is not guaranteed to return. This thread must not be the current thread.
+	 * q2 change it. condition vars they give us
 	 */
-	public void join() {
+	public void join() { //this is a, currentThread is b
+		//if a finished, b return immediately
+		if( this.status ==  statusFinished ) return;
+		//if a not finish, b wait inside of join till a finish. 
+		//when a finish, it resumes b
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
-
 		Lib.assertTrue(this != currentThread);
 
+		boolean intStatus = Machine.interrupt().disable();
+		parent = currentThread;
+		sleep(); //do something outside to wake up b
+		//a auto enters finish. write more tests?
+		//brainstorm tests: b calls on a, a  calls on c
+		Machine.interrupt().restore(intStatus);//pass in
 	}
 
 	/**
@@ -407,16 +513,6 @@ public class KThread {
 		private int which;
 	}
 
-	/**
-	 * Tests whether this module is working.
-	 */
-	public static void selfTest() {
-		Lib.debug(dbgThread, "Enter KThread.selfTest");
-
-		new KThread(new PingTest(1)).setName("forked thread").fork();
-		new PingTest(0).run();
-	}
-
 	private static final char dbgThread = 't';
 
 	/**
@@ -460,9 +556,11 @@ public class KThread {
 
 	private static ThreadQueue readyQueue = null;
 
-	private static KThread currentThread = null;
+	private static KThread currentThread = null; //static : 1 current thread. 1 version.
 
 	private static KThread toBeDestroyed = null;
 
 	private static KThread idleThread = null;
+
+	private static KThread parent = null;
 }
