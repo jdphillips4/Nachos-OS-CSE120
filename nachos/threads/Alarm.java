@@ -42,6 +42,67 @@ public class Alarm {
 		}
 	}
 
+	public static void alarmTest2() {
+        //once the alarm is over, within 500 ticks wake it up. my program waits
+        //thread 3 should fire 1st since its shortest
+        System.out.println("Starting alarmTest2: Multiple threads sleeping, wake them");
+
+        KThread thread1 = new KThread(() -> {
+                // long t0 = Machine.timer().getTime();
+                // System.out.println("currenttime is :"+ t0);
+                ThreadedKernel.alarm.waitUntil(2000);
+                System.out.println("Thread 1 woke up after 2000 ticks");
+                // long t1 = Machine.timer().getTime();
+                // System.out.println("thread1: waited for " + (t1 - t0) + " ticks");
+                //t1-t0 <= 500. 
+      
+        });
+
+        KThread thread2 = new KThread(() -> {
+            ThreadedKernel.alarm.waitUntil(3000);
+            System.out.println("Thread 2 woke up after 3000 ticks");
+            
+        });
+
+        KThread thread3 = new KThread(() -> {
+            ThreadedKernel.alarm.waitUntil(1000);
+            System.out.println("Thread 3 woke up after 1000 ticks");
+        });
+
+        thread1.fork();
+        thread2.fork();
+        thread3.fork();
+
+        // Busy wait to let threads to finish
+        for (int i = 0; i < 5; i++) {
+            System.out.println("Main thread busy waiting...");
+            KThread.currentThread().yield();
+        }
+
+        thread1.join();
+        thread2.join();
+        thread3.join();
+        System.out.println("3 threads joined");
+    }
+
+    public static void alarmTest3() {
+        System.out.println(" alarmTest3: Edge case with zero wait");
+
+        long t0 = Machine.timer().getTime();
+        ThreadedKernel.alarm.waitUntil(0); // Should return immediately
+        long t1 = Machine.timer().getTime();
+        System.out.println("alarmTest3: waited for " + (t1 - t0) + " ticks (expected: 0)");
+    }
+
+    public static void alarmTest4() {
+        System.out.println(" alarmTest4: Negative wait time");
+
+        long t0 = Machine.timer().getTime();
+        ThreadedKernel.alarm.waitUntil(-500); // Should return immediately
+        long t1 = Machine.timer().getTime();
+        System.out.println("alarmTest4: waited for " + (t1 - t0) + " ticks (expected: 0)");
+    }
+
 	// Test our Alarm code with multiple threads
 	public static void threadTest() {
 		MyRunnable runnable1 = new MyRunnable(1, 10);
@@ -58,15 +119,18 @@ public class Alarm {
 		
 
 		// stall so main thread doesn't shut it down
-		int count = 0;
 		for(int i = 0; i < 1000; i++) {
 			KThread.yield();
 		}
 	}
+
 	
 	// Invoke Alarm.selfTest() from ThreadedKernel.selfTest()
 	public static void selfTest() {
 		alarmTest1();
+		alarmTest2();
+		alarmTest3();
+		alarmTest4();
 		threadTest();
 	}
 	/**

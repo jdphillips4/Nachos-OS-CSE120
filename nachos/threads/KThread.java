@@ -292,6 +292,12 @@ public class KThread {
 		joinTest2();
 		joinTest3();
 		joinTest4();
+		joinTest5();
+		joinTest6();
+		joinTest7();
+		joinTest12();
+		joinTest13();
+		joinTest14();
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
 	}
@@ -322,7 +328,7 @@ public class KThread {
 	}
 
 	// test method when the child is still running
-	private static void joinTest2() {
+	private static void joinTest12() {
 		KThread child1 = new KThread( new Runnable () {
 			public void run() {
 				float count = 0;
@@ -334,19 +340,19 @@ public class KThread {
 		child1.setName("child1").fork();
 		// join while child1 is running
 		child1.join();
-		System.out.println("joinTest2");
+		System.out.println("joinTest12");
 		System.out.println("is it? " + (child1.status == statusFinished));
 		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
 	}
 
 	// calling join on itself is bad
-	private static void joinTest3() {
-		System.out.println("joinTest3!");
+	private static void joinTest13() {
+		System.out.println("joinTest13!");
 		// this will throw an error
 		//currentThread.join();
 	}
 
-	private static void joinTest4() {
+	private static void joinTest14() {
 		KThread child1 = new KThread( new Runnable () {
 			public void run() {
 				int count = 0;
@@ -369,6 +375,164 @@ public class KThread {
 		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
 		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
 		System.out.println("joinTest4 passed!");
+	}
+
+	public static void joinTest2() {
+		System.out.println("join while running"); //b is parent a is child
+		KThread a = new KThread(() -> {
+			for (int i = 0; i < 5; i++) {
+				System.out.println("A is running...");
+				KThread.yield(); // Yield to allow B to run
+			}
+		});
+
+		KThread b = new KThread(() -> {
+			a.join(); // B should wait for A to finish
+			System.out.println("B has joined A.");
+		});
+
+		a.fork();
+		b.fork();
+
+		a.join(); 
+		b.join(); 
+	}
+	
+	
+	public static void joinTest3() {//testJoinAfterCompletion
+		System.out.println("testJoinAfterCompletion");
+		KThread a = new KThread(() -> {
+			System.out.println("A is running...");
+		});
+
+		KThread b = new KThread(() -> {
+			a.join(); // B should not wait since a already done
+			System.out.println("B has joined A after completion.");
+		});
+
+		a.fork();
+		b.fork();
+
+		a.join(); 
+		b.join(); 
+	}
+
+	
+	public static void joinTest4() { 
+		// Test case for a thread calling join on itself, which should assert.
+		System.out.println("a thread calls join on itself assert");
+		KThread a = new KThread(() -> {
+			for (int i = 0; i < 5; i++) {
+				System.out.println("A is running...");
+			}
+		});
+		a.fork(); // Fork the thread to ensure it runs
+		try {
+			a.join(); // A calls join on itself
+		} catch (AssertionError e) {
+			System.out.println("Caught expected assertion error: " + e.getMessage());
+		}
+	}
+
+	public static void joinTest5(){
+		//join is called more than once on a thread, Nachos asserts;
+		System.out.println("join is called more than once on a thread, Nachos asserts;");
+		KThread a = new KThread(() -> {
+			for (int i = 0; i < 5; i++) {
+				System.out.println("A is running...");
+				KThread.yield();
+			}
+		});
+		a.fork();
+		a.join(); // 1st join
+		try {
+			a.join(); // 2nd join
+		} catch (AssertionError e) {
+			System.out.println("Caught expected assertion error: " + e.getMessage());
+		}
+	
+	}
+	public static void joinTest6(){
+		//one thread can join with multiple other threads in succession
+		System.out.println("one thread can join with multiple other threads in succession");
+		  KThread a = new KThread(() -> {
+		for (int i = 0; i < 5; i++) {
+			System.out.println("A is running...");
+			KThread.yield();
+		}
+		});
+
+		KThread b = new KThread(() -> {
+			for (int i = 0; i < 5; i++) {
+				System.out.println("B is running...");
+				KThread.yield();
+			}
+		});
+
+		KThread c = new KThread(() -> {
+			System.out.println("C is running...");
+		});
+
+		a.fork();
+		b.fork();
+		c.fork();
+
+		// Thread D joins A and then B
+		KThread d = new KThread(() -> {
+			a.join(); // Join A
+			System.out.println("D has joined A.");
+			b.join(); // Join B
+			System.out.println("D has joined B.");
+		});
+
+		d.fork();
+		d.join(); // Wait for D to finish	
+	}
+
+	public static void joinTest7(){
+		System.out.println("independent pairs of threads can join with each other without interference");
+		KThread a = new KThread(() -> {
+			System.out.println("A is running...");
+			KThread.yield();
+		});
+	
+		KThread b = new KThread(() -> {
+			System.out.println("B is running...");
+			KThread.yield();
+		});
+	
+		KThread c = new KThread(() -> {
+			System.out.println("C is running...");
+			KThread.yield();
+		});
+	
+		KThread d = new KThread(() -> {
+			System.out.println("D is running...");
+			KThread.yield();
+		});
+	
+		a.fork();
+		b.fork();
+		c.fork();
+		d.fork();
+	
+		// Thread E joins A and B, while F joins C and D
+		KThread e = new KThread(() -> {
+			a.join();
+			b.join();
+			System.out.println("E has joined A and B.");
+		});
+	
+		KThread f = new KThread(() -> {
+			c.join();
+			d.join();
+			System.out.println("F has joined C and D.");
+		});
+	
+		e.fork();
+		f.fork();
+		e.join();
+		f.join(); // Wait for both E and F to finish
 	}
 
 	/**
