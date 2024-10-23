@@ -1,8 +1,10 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import nachos.threads.Alarm.SleepThread;
 
 import java.util.LinkedList;
+import nachos.threads.Alarm;
 
 /**
  * An implementation of condition variables that disables interrupt()s for
@@ -14,6 +16,9 @@ import java.util.LinkedList;
  * @see nachos.threads.Condition
  */
 public class Condition2 {
+	
+
+	private static LinkedList<KThread> waitQueue = new LinkedList<KThread>(); //of threads
 	/**
 	 * Allocate a new condition variable.
 	 * 
@@ -23,7 +28,6 @@ public class Condition2 {
 	 */
 	public Condition2(Lock conditionLock) {
 		this.conditionLock = conditionLock;
-		waitQueue = new LinkedList<KThread>();
 	}
 
 	/**
@@ -34,15 +38,11 @@ public class Condition2 {
 	 */
 	public void sleep() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-
 		conditionLock.release();
-
-		boolean status = Machine.interrupt().disable();
 		waitQueue.add(KThread.currentThread());
-		//waitQueue.waitForAccess(KThread.currentThread());
-		KThread.sleep();
-		Machine.interrupt().restore(status);
-
+		boolean intStatus = Machine.interrupt().disable();
+        KThread.sleep(); // Block the current thread
+        Machine.interrupt().restore(intStatus);
 		conditionLock.acquire();
 	}
 
@@ -52,24 +52,23 @@ public class Condition2 {
 	 */
 	public void wake() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-		
-		if (!waitQueue.isEmpty()) {
-			//((Semaphore) waitQueue.removeFirst()).V();
+		if( ! waitQueue.isEmpty() ){ //do we iterate thru queue
 			boolean intStatus = Machine.interrupt().disable();
-			waitQueue.removeFirst().ready();
-			Machine.interrupt().restore(intStatus);
+			waitQueue.removeLast().ready(); // ready 1 thread. does order remove matter
+        	Machine.interrupt().restore(intStatus);
 		}
-		
 	}
 
 	/**
 	 * Wake up all threads sleeping on this condition variable. The current
 	 * thread must hold the associated lock.
+	 * iterates thru queue
 	 */
 	public void wakeAll() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-		while (!waitQueue.isEmpty())
+		while( ! waitQueue.isEmpty() ){
 			wake();
+		}
 	}
 
         /**
@@ -79,14 +78,29 @@ public class Condition2 {
 	 * <i>timeout</i> elapses.  The current thread must hold the
 	 * associated lock.  The thread will automatically reacquire
 	 * the lock before <tt>sleep()</tt> returns.
+	 * PART 4 ONLY
+	 * same as before but also a timer. wait until alarm.
+	 * //sleep()
+		//wake thru arg timeout (waituntil) or wake() function (cancel function in alarm)
+		//data struct for either condition.
+		//remove from queue by timeout. or cancel is remove by wake
+		//compare wakeTime of thread to timeout x
+        this code only deals w 1 thread right? not the whole queue?
 	 */
         public void sleepFor(long timeout) {
-		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-	}
+			Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+            conditionLock.release();
+            long wakeTime = Machine.timer().getTime() + timeout;
+            // make the thread sleep for specific time
+            ThreadedKernel.alarm.waitUntil(wakeTime);
+            // Reacquire lock after waking up
+            waitQueue.remove(KThread.currentThread());
+            conditionLock.acquire();
+            }
 
         private Lock conditionLock;
 
-		private LinkedList<KThread> waitQueue;
+		//tests
 		// Place Condition2 testing code in the Condition2 class.
 
     // Example of the "interlock" pattern where two threads strictly
@@ -138,12 +152,7 @@ public class Condition2 {
 
     // Invoke Condition2.selfTest() from ThreadedKernel.selfTest()
 
-    public static void selfTest() {
-        new InterlockTest();
-		cvTest5();
-    }
-
-	// Place Condition2 test code inside of the Condition2 class.
+	  // Place Condition2 test code inside of the Condition2 class.
 
     // Test programs should have exactly the same behavior with the
     // Condition and Condition2 classes.  You can first try a test with
@@ -156,6 +165,7 @@ public class Condition2 {
     // functionality.
 
     public static void cvTest5() {
+		System.out.println("condition2 cvtest5");
         final Lock lock = new Lock();
         // final Condition empty = new Condition(lock);
         final Condition2 empty = new Condition2(lock);
@@ -164,16 +174,10 @@ public class Condition2 {
         KThread consumer = new KThread( new Runnable () {
                 public void run() {
                     lock.acquire();
-					//System.out.println("running consumer");
                     while(list.isEmpty()){
                         empty.sleep();
                     }
-					//System.out.println(list.size());
-                    // if (list.size() != 5) {
-					// 	System.out.println("List should have 5 values.");
-					// }
-					Lib.assertTrue(list.size() == 5, "List should have 5 values.");
-					
+                    Lib.assertTrue(list.size() == 5, "List should have 5 values.");
                     while(!list.isEmpty()) {
                         // context swith for the fun of it
                         KThread.currentThread().yield();
@@ -211,5 +215,121 @@ public class Condition2 {
         consumer.join();
         producer.join();
         //for (int i = 0; i < 50; i++) { KThread.currentThread().yield(); }
+    }
+
+	public static void test1(){
+		System.out.println("sleep blocks the calling thread");
+	}
+
+	public static void test2(){
+		System.out.println("wake wakes up ONE thread, even if multiple threads are waiting");
+    }
+
+	public static void test3(){
+		System.out.println("wakeAll wakes up all waiting threads");
+	}
+    // public static void test4(){
+	// 	System.out.println("if a thread calls any of the synchronization methods without holding the lock, Nachos asserts");
+	// }
+    public static void sleepFor1(){
+		System.out.println("a thread that calls sleepFor will timeout and return after x ticks if no other thread calls wake to wake it up");
+        final Lock lock = new Lock();
+        final Condition2 c2 = new Condition2(lock);
+        KThread thread = new KThread(() -> {
+            lock.acquire();
+            c2.sleepFor(2000); // Sleep for 2000 ticks
+            System.out.println("Thread woke up after timeout");
+            lock.release();
+        });
+        
+        thread.fork();
+        thread.join(); // Wait for the thread to finish
+    
+    }
+    public static void sleepFor2(){
+		System.out.println("a thread that calls sleepFor will wake up and return if another thread calls wake before the timeout expires");
+        final Lock lock = new Lock();
+        final Condition2 c2 = new Condition2(lock);
+        KThread thread1 = new KThread( () -> {
+            lock.acquire();
+            c2.sleepFor(2000); //should wake after thread2
+            System.out.println("thread 1 wakes up");
+            lock.release();
+        }) ;
+        KThread thread2 = new KThread(() -> {
+            lock.acquire();
+            c2.sleepFor(500);
+            c2.wake(); //wait 500 ticks to wake up thread2 1st
+            System.out.println("Thread 2 wakes up. should be 1st");
+            lock.release();
+        });
+        thread1.fork();
+        thread2.fork();
+        thread1.join();
+        thread2.join();
+    
+    }
+    public static void sleepFor3(){
+		System.out.println("thread that calls sleepFor will timeout and return after x ticks if no other thread calls wake to wake it up");
+        final Lock lock = new Lock();
+        final Condition2 c2 = new Condition2(lock);
+        KThread thread1 = new KThread( () -> {
+            lock.acquire();
+            c2.sleepFor(2000); //should wake after thread2
+            System.out.println("thread 1 wakes up");
+            lock.release();
+        }) ;
+        thread1.fork();
+        thread1.join();
+    }
+    public static void sleepFor4(){
+		//System.out.println("sleepFor handles multiple threads correctly (e.g., different timeouts, all are woken up with wakeAll");
+        System.out.println("sleepFor removes woken threads from waitQueue");
+        final Lock lock = new Lock();
+        final Condition2 c2 = new Condition2(lock);
+        KThread thread1 = new KThread( () -> {
+            lock.acquire();
+            c2.sleepFor(2000); //2nd
+            c2.wake();
+            System.out.println("thread 1 wakes up");
+            lock.release();
+        }) ;
+        printQueueContents();
+        KThread thread2 = new KThread( () -> {
+            lock.acquire();
+            c2.sleepFor(1000); //1st
+            c2.wake();
+            System.out.println("thread 2 wakes up");
+            lock.release();
+        }) ;
+        printQueueContents();
+        KThread thread3 = new KThread( () -> {
+            lock.acquire();
+            c2.sleepFor(4000); //3rd
+            c2.wake();
+            System.out.println("thread 3 wakes up");
+            lock.release();
+        }) ;
+        printQueueContents();
+
+        thread1.fork();
+        thread2.fork();
+        thread3.fork();
+        thread1.join();
+        thread2.join();
+        thread3.join();
+        printQueueContents();
+    }
+    public static void printQueueContents() { //debugging function 
+        System.out.println("PRINTING THE WAIT QUEUE");
+		for (KThread kt : waitQueue) {//for each
+			System.out.println("Thread: " + kt.getName() );
+		}
+	}
+    public static void selfTest() {
+        //new InterlockTest();
+		//cvTest5();
+        //sleepFor2();
+        sleepFor4();
     }
 }
