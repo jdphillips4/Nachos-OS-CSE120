@@ -57,27 +57,31 @@ public class Rendezvous {
     public int exchange (int tag, int value) { 
         int exchange = 0; //new
 	    lock.acquire();
-        if ( ! theHashMap.isEmpty() ) waiting = true; //
-        if( waiting == true ){ 
-            Condition c = theHashMap.get(tag); //use tag to get matching tag's condition
+        if( theHashMap.isEmpty() ){ //nothing in hashmap. no one in wait room
+            Condition c = new Condition(lock);
+            exchange = value;
+            theHashMap.put(value ,c ); //populate waiting room
+            c.sleep();
+        }
+        if ( ! theHashMap.isEmpty() ) { //there r patients in the wait room
+            Condition c = theHashMap.get(tag); //is this dr. mario's patient? c is not null if matching tag
+            if( c != null ) waiting = true; // yes it's his patient
+            else{ //not his patient, populate waiting room
+                Condition c2 = new Condition(lock);
+                exchange = value;
+                theHashMap.put(value ,c2 ); 
+                c2.sleep();
+            }
+            if( waiting == true ){ //matching tag. treat the patient
             exchangeState e = new exchangeState( value , c); //access switchvalue from condition
             System.out.println("e "+e.switchValue);
             exchange = e.switchValue;
             e.condition.wake();//null
             theHashMap.remove(tag);
         }
-        else{ //matching tag not exist yet. putting into the hashmap
-            // thread calling exchange waits until there's a matching tag in the hashmap
-            Condition c = new Condition(lock);
-            exchange = value;
-            theHashMap.put(value ,c ); //putting tag, condition. 
-            c.sleep();
-            
-        }
-        
+    }
         lock.release();
         return exchange;
-        
     }
 
     //refs to thread since i cant assign tag into a thread.
