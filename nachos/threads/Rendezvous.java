@@ -58,8 +58,12 @@ public class Rendezvous {
         int exchange = 0; //new
 	    lock.acquire();
         if( theHashMap.isEmpty() ){ //nothing in hashmap. no one in wait room
+            System.out.print("enter hashmap empty condtion");
             Condition c = new Condition(lock);
             exchange = value;
+            storedValue = value; //t1 puts val1 in mailbox
+            System.out.print("thread1 exchange is: "+exchange);
+            System.out.print("thread 1 puts "+storedValue+" in mailbox");
             theHashMap.put(tag ,c ); //populate waiting room
             c.sleep();
         }
@@ -75,8 +79,9 @@ public class Rendezvous {
             if( waiting == true ){ //matching tag. treat the patient
             exchangeState e = new exchangeState( value , c); //access switchvalue from condition
             System.out.println("e "+e.switchValue);
-            exchange = e.switchValue; //switchvalue for 2 diff threads. 
-            e.condition.wake();//null
+            exchange = storedValue; //t2 gets val1 from mailbox. 
+            storedValue = e.switchValue; //t2 puts val2 in mailbox
+            e.condition.wake();//?
             theHashMap.remove(tag);
         } //t1 tag=0 value=-1    t2 tag=0 value=1    var 
     }
