@@ -390,7 +390,7 @@ public class Condition2 {
      // wake() wakes at most 1 thread in queue
      public static void cvTest10() {
         final Lock lock = new Lock();
-        final Condition empty = new Condition(lock);
+        final Condition2 empty = new Condition2(lock);
         final LinkedList<Integer> list = new LinkedList<>();
 
         KThread run1 = new KThread( new Runnable () {
@@ -439,7 +439,7 @@ public class Condition2 {
             KThread.yield();
         }
         Lib.assertTrue(list.size() == 1, "the previous wake was lost");
-        //Lib.assertTrue(empty.waitQueue.size() == 2, "there should be 2 threads in queue");
+        Lib.assertTrue(empty.waitQueue.size() == 2, "there should be 2 threads in queue");
         lock.acquire();
         empty.wakeAll();
         lock.release();
@@ -447,7 +447,7 @@ public class Condition2 {
         run2.join();
         run3.join();
         Lib.assertTrue(list.size() == 3, "all threads should have been woken");
-        //Lib.assertTrue(empty.waitQueue.size() == 0, "there should be no threads in queue");
+        Lib.assertTrue(empty.waitQueue.size() == 0, "there should be no threads in queue");
         System.out.println("cvTest10 passed!");
     }
 

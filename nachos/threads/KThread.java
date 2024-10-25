@@ -197,14 +197,14 @@ public class KThread {
 		//ref b. add b thread var somewhere
 		//bThread.
 		Lib.debug(dbgThread, "Finishing thread: " + currentThread);
-		System.out.println("Finishing thread: " + currentThread);
-		System.out.println("joinMap pre: " + joinMap);
+		//System.out.println("Finishing thread: " + currentThread);
 
 		Machine.interrupt().disable();
 
 		parentLock.acquire();
 		if (joinMap.get(currentThread) != null) {
 			joinMap.get(currentThread).ready();
+			//System.out.println("removing key: " + currentThread);
 			joinMap.remove(currentThread);			// signal parent
 		}
 		parentLock.release();
@@ -215,9 +215,6 @@ public class KThread {
 		toBeDestroyed = currentThread;
 
 		currentThread.status = statusFinished;
-
-		System.out.println("joinMap post: " + joinMap);
-		System.out.println(currentThread + " completely finished!");
 		sleep();
 	}
 
@@ -264,7 +261,7 @@ public class KThread {
 	 */
 	public static void sleep() {
 		Lib.debug(dbgThread, "Sleeping thread: " + currentThread.toString());
-		System.out.println("Sleeping thread: " + currentThread.toString());
+		//System.out.println("Sleeping thread: " + currentThread.toString());
 
 		Lib.assertTrue(Machine.interrupt().disabled());
 
@@ -304,19 +301,20 @@ public class KThread {
 		//if a not finish, b wait inside of join till a finish. 
 		//when a finish, it resumes b
 		Lib.debug(dbgThread, this +  " Joining to thread: " + currentThread);
-		System.out.println(this + " Joining to thread: " + currentThread);
+		//System.out.println(this + " Joining to thread: " + currentThread);
 		Lib.assertTrue(this != currentThread);		// can't call join on itself
 		Lib.assertTrue(joinMap.get(this) == null);// can't call join on the same thread 
 
 		// atomically update parent
 		parentLock.acquire();
-		joinMap.put(this, currentThread);
+		if (this.status != statusFinished) {
+			//System.out.println("adding key: " + this + " with val: " + currentThread);
+			joinMap.put(this, currentThread);
+		}
 		parentLock.release();
 		// join won't terminate until child is done
 		while(joinMap.get(this) != null) {
-			System.out.println(joinMap);
 			boolean intStatus = Machine.interrupt().disable();
-			System.out.println("Join sleeping: " + currentThread);
 			sleep(); // wait to be woken in finalize
 			Machine.interrupt().restore(intStatus);
 		}
