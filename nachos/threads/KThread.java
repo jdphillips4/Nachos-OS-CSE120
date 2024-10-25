@@ -152,6 +152,7 @@ public class KThread {
 		Lib.assertTrue((a.status == statusFinished), " Expected a to be finished.");
 		b.join(); 
 		Lib.assertTrue((b.status == statusFinished), " Expected b to be finished.");
+		System.out.println("joinTest3 passed!");
 	}
 
 	// A calling join() on itself should assert
@@ -220,6 +221,7 @@ public class KThread {
 		d.setName("d").fork();
 		d.join(); // Wait for D to finish
 		Lib.assertTrue(d.status == statusFinished);	
+		System.out.println("joinTest6 passed!");
 	}
 
 	// independent pairs of threads can join each other w/o interference
@@ -283,6 +285,7 @@ public class KThread {
 		// join while child1 is running
 		child1.join();
 		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+		System.out.println("joinTest8 passed!");
 	}
 
 	private static void joinTest9() {
@@ -306,7 +309,7 @@ public class KThread {
 		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
 		child2.join();
 		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
-		System.out.println("joinTest10 passed!");
+		System.out.println("joinTest9 passed!");
 	}
 
 	/**
