@@ -68,9 +68,8 @@ public class Rendezvous {
             System.out.println("thread1 exchange is: "+exchange);
             System.out.println("thread 1 puts "+storedValue+" in mailbox");
             c.sleep(); //does NOT do EXCHANGE
-            System.out.println("waiting= "+waiting);
         }
-        Condition c = theHashMap.get(tag); //this thread calls exchange
+        Condition c = theHashMap.get(tag); //this thread calls exchange. thread2
         if( waiting == true ){ //matching thread will wake up sleeping thread. EXCHANGE. make sure thread doing exchange is NOT SLEEEP()
             System.out.println("thread 2 want to wake thread 1");
             waiting = false;
@@ -79,7 +78,7 @@ public class Rendezvous {
             storedValue = e.switchValue; //t2 puts val2 in mailbox
             System.out.println("thread2 exchange is: "+exchange);
             System.out.println("THread 2 put "+e.switchValue+" into mailbox");
-            Condition wakeThread = theHashMap.get(tag);
+            Condition wakeThread = theHashMap.get(tag); //
             System.out.println("thread to wake is "+wakeThread.toString());
             wakeThread.wake();//wake thread w matching thread THATS ASLEEP
             theHashMap.remove(tag);
