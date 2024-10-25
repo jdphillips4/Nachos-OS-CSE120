@@ -85,9 +85,10 @@ public class Rendezvous {
         }
         //new thread: i didnt exchange yet so w=f. drop in mailbox, then w=t.
         else{ //not his patient, populate waiting room
+            System.out.print("the extra else. assume thread 1 is awake and should get its mail ");
             Condition c2 = new Condition(lock);
-            exchange = value;
-            theHashMap.put(tag ,c2 ); 
+            exchange = storedValue;
+            //somehow access thread1's old value and change it. i forgot to make an exchange class for therad 1
             c2.sleep();
         }
       
