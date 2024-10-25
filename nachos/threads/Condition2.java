@@ -18,7 +18,7 @@ import nachos.threads.Alarm;
 public class Condition2 {
 	
 
-	private static LinkedList<KThread> waitQueue = new LinkedList<KThread>(); //of threads
+	private LinkedList<KThread> waitQueue = new LinkedList<KThread>(); //of threads
 	/**
 	 * Allocate a new condition variable.
 	 * 
@@ -38,8 +38,8 @@ public class Condition2 {
 	 */
 	public void sleep() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+        waitQueue.add(KThread.currentThread());
 		conditionLock.release();
-		waitQueue.add(KThread.currentThread());
 		boolean intStatus = Machine.interrupt().disable();
         KThread.sleep(); // Block the current thread
         Machine.interrupt().restore(intStatus);
@@ -54,7 +54,7 @@ public class Condition2 {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 		if( ! waitQueue.isEmpty() ){ //do we iterate thru queue
 			boolean intStatus = Machine.interrupt().disable();
-			waitQueue.removeLast().ready(); // ready 1 thread. does order remove matter
+			waitQueue.removeFirst().ready(); // ready 1 thread. does order remove matter
         	Machine.interrupt().restore(intStatus);
 		}
 	}
@@ -96,18 +96,11 @@ public class Condition2 {
             // Reacquire lock after waking up
             waitQueue.remove(KThread.currentThread());
             conditionLock.acquire();
-            }
+        }
 
         private Lock conditionLock;
 
-		//tests
-		// Place Condition2 testing code in the Condition2 class.
-
-    // Example of the "interlock" pattern where two threads strictly
-    // alternate their execution with each other using a condition
-    // variable.  (Also see the slide showing this pattern at the end
-    // of Lecture 6.)
-
+    // alternate executions using a cv
     private static class InterlockTest {
         private static Lock lock;
         private static Condition2 cv;
@@ -136,34 +129,11 @@ public class Condition2 {
             ping.fork();
             pong.fork();
 
-            // We need to wait for ping to finish, and the proper way
-            // to do so is to join on ping.  (Note that, when ping is
-            // done, pong is sleeping on the condition variable; if we
-            // were also to join on pong, we would block forever.)
-            // For this to work, join must be implemented.  If you
-            // have not implemented join yet, then comment out the
-            // call to join and instead uncomment the loop with
-            // yields; the loop has the same effect, but is a kludgy
-            // way to do it.
             ping.join();
-            // for (int i = 0; i < 50; i++) { KThread.currentThread().yield(); }
         }
     }
 
-    // Invoke Condition2.selfTest() from ThreadedKernel.selfTest()
-
-	  // Place Condition2 test code inside of the Condition2 class.
-
-    // Test programs should have exactly the same behavior with the
-    // Condition and Condition2 classes.  You can first try a test with
-    // Condition, which is already provided for you, and then try it
-    // with Condition2, which you are implementing, and compare their
-    // behavior.
-
-    // Do not use this test program as your first Condition2 test.
-    // First test it with more basic test programs to verify specific
-    // functionality.
-
+    // Test bounded producers/consumers
     public static void cvTest5() {
 		System.out.println("condition2 cvtest5");
         final Lock lock = new Lock();
@@ -196,6 +166,7 @@ public class Condition2 {
                         // context swith for the fun of it
                         KThread.currentThread().yield();
                     }
+                    //printQueueContents();
                     empty.wake();
                     lock.release();
                 }
@@ -206,31 +177,280 @@ public class Condition2 {
         consumer.fork();
         producer.fork();
 
-        // We need to wait for the consumer and producer to finish,
-        // and the proper way to do so is to join on them.  For this
-        // to work, join must be implemented.  If you have not
-        // implemented join yet, then comment out the calls to join
-        // and instead uncomment the loop with yield; the loop has the
-        // same effect, but is a kludgy way to do it.
         consumer.join();
         producer.join();
-        //for (int i = 0; i < 50; i++) { KThread.currentThread().yield(); }
     }
 
-	public static void test1(){
-		System.out.println("sleep blocks the calling thread");
-	}
+    // sleep() should block current thread
+    public static void cvTest6() {
+        final Lock lock = new Lock();
+        final Condition2 empty = new Condition2(lock);
+        final LinkedList<Integer> list = new LinkedList<>();
 
-	public static void test2(){
-		System.out.println("wake wakes up ONE thread, even if multiple threads are waiting");
+        KThread run1 = new KThread( new Runnable () {
+                public void run() {
+                    lock.acquire();
+                    list.add(1);
+                    lock.release();
+                }
+            });
+
+        // this thread should sleep and not add to list
+        KThread run2 = new KThread( new Runnable () {
+                public void run() {
+                    lock.acquire();
+                    if (list.size() > 0) {
+                        empty.sleep();
+                        list.add(2);        // this shouldn't run
+                    }
+                    lock.release();
+                }
+            });
+
+        run1.setName("run1").fork();
+        run1.join();
+        run2.setName("run2").fork();
+        // let run2 sleep for a bit
+        for (int i=0; i<5; i++) {
+            KThread.yield();
+        }
+        Lib.assertTrue(list.size() == 1, "run2 should still be sleeping");
+        lock.acquire();
+        empty.wake();
+        lock.release();
+        // wait a bit again
+        for (int i=0; i<5; i++) {
+            KThread.yield();
+        }
+        Lib.assertTrue(list.size() == 2, "run2 should have woken");
+        System.out.println("cvTest6 passed!");
+    }
+    
+    // wake() wakes at most 1 thread in queue
+    public static void cvTest7() {
+        final Lock lock = new Lock();
+        final Condition2 empty = new Condition2(lock);
+        final LinkedList<Integer> list = new LinkedList<>();
+
+        KThread run1 = new KThread( new Runnable () {
+                public void run() {
+                    lock.acquire();
+                    list.add(1);
+                    lock.release();
+                }
+            });
+
+        // this thread should sleep
+        KThread run2 = new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(2);
+                }
+                lock.release();
+            }
+        });
+        
+        // this thread should sleep x2
+        KThread run3= new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(3);
+                }
+                lock.release();
+            }
+        });
+
+        run1.setName("run1").fork();
+        run1.join();
+        run2.setName("run2").fork();
+        run3.setName("run3").fork();
+        // let run2 sleep for a bit
+        for (int i=0; i<5; i++) {
+            KThread.yield();
+        }
+        Lib.assertTrue(list.size() == 1, "run2 and run3 should be sleeping");
+        Lib.assertTrue(empty.waitQueue.size() == 2, "there should be 2 threads in queue");
+        lock.acquire();
+        empty.wake();
+        lock.release();
+        // wait a bit again
+        run2.join();
+        Lib.assertTrue(list.size() == 2, "only 1 thread should have been woken");
+        Lib.assertTrue(empty.waitQueue.size() == 1, "there should be 1 thread in queue");
+        lock.acquire();
+        empty.wake();
+        lock.release();
+        // wait a bit again
+        run3.join();
+        Lib.assertTrue(list.size() == 3, "only 1 thread should have been woken");
+        Lib.assertTrue(empty.waitQueue.size() == 0, "there should be no threads in queue");
+        System.out.println("cvTest7 passed!");
     }
 
-	public static void test3(){
-		System.out.println("wakeAll wakes up all waiting threads");
-	}
-    // public static void test4(){
-	// 	System.out.println("if a thread calls any of the synchronization methods without holding the lock, Nachos asserts");
-	// }
+    // wakeAll wakes up all waiting threads
+    public static void cvTest8() {
+        final Lock lock = new Lock();
+        final Condition2 empty = new Condition2(lock);
+        final LinkedList<Integer> list = new LinkedList<>();
+
+        KThread run1 = new KThread( new Runnable () {
+                public void run() {
+                    lock.acquire();
+                    list.add(1);
+                    lock.release();
+                }
+            });
+
+        // this thread should sleep
+        KThread run2 = new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(2);
+                }
+                lock.release();
+            }
+        });
+        
+        // this thread should sleep x2
+        KThread run3= new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(3);
+                }
+                lock.release();
+            }
+        });
+
+        run1.setName("run1").fork();
+        run1.join();
+        run2.setName("run2").fork();
+        run3.setName("run3").fork();
+        // let run2 sleep for a bit
+        for (int i=0; i<5; i++) {
+            KThread.yield();
+        }
+        Lib.assertTrue(list.size() == 1, "run2 and run3 should be sleeping");
+        Lib.assertTrue(empty.waitQueue.size() == 2, "there should be 2 threads in queue");
+        lock.acquire();
+        empty.wakeAll();
+        lock.release();
+        // wait a bit again
+        run2.join();
+        run3.join();
+        Lib.assertTrue(list.size() == 3, "all threads should have been woken");
+        Lib.assertTrue(empty.waitQueue.size() == 0, "there should be no threads in queue");
+        System.out.println("cvTest8 passed!");
+    }
+
+    // if a thread calls any of the synchronization methods without holding the lock, Nachos asserts
+    public static void cvTest9() {
+        final Lock lock = new Lock();
+        final Condition2 empty = new Condition2(lock);
+        final LinkedList<Integer> list = new LinkedList<>();
+
+        boolean sleepCaught = false;
+        try {
+            empty.sleep();
+        } catch(Error e) {
+            sleepCaught = true;
+        }
+        boolean wakeCaught = false;
+        try {
+            empty.wake();
+        } catch(Error e) {
+            wakeCaught = true;
+        }
+        boolean wakeAllCaught = false;
+        try {
+            empty.wakeAll();
+        } catch(Error e) {
+            wakeAllCaught = true;
+        }
+        Lib.assertTrue(sleepCaught == true, "sleep w/o lock should assert!");
+        Lib.assertTrue(wakeCaught == true, "wake w/o lock should assert!");
+        Lib.assertTrue(wakeAllCaught == true, "wakeAll w/o lock should assert!");
+        System.out.println("cvTest9 passed!");
+    }
+
+    // wake and wakeAll with no waiting threads have no effect
+    // yet future threads that sleep will still block
+    // (i.e., the wake/wakeAll is "lost", which is in contrast to the semantics of semaphores).
+     // wake() wakes at most 1 thread in queue
+     public static void cvTest10() {
+        final Lock lock = new Lock();
+        final Condition empty = new Condition(lock);
+        final LinkedList<Integer> list = new LinkedList<>();
+
+        KThread run1 = new KThread( new Runnable () {
+                public void run() {
+                    lock.acquire();
+                    list.add(1);
+                    lock.release();
+                }
+            });
+
+        // this thread should sleep
+        KThread run2 = new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(2);
+                }
+                lock.release();
+            }
+        });
+        
+        // this thread should sleep x2
+        KThread run3= new KThread( new Runnable () {
+            public void run() {
+                lock.acquire();
+                if (list.size() > 0) {
+                    empty.sleep();
+                    // this only runs after being woken
+                    list.add(3);
+                }
+                lock.release();
+            }
+        });
+
+        run1.setName("run1").fork();
+        run1.join();
+        lock.acquire();
+        empty.wake();
+        lock.release();
+        run2.setName("run2").fork();
+        run3.setName("run3").fork();
+        // stall for a bit
+        for (int i=0; i<5; i++) {
+            KThread.yield();
+        }
+        Lib.assertTrue(list.size() == 1, "the previous wake was lost");
+        //Lib.assertTrue(empty.waitQueue.size() == 2, "there should be 2 threads in queue");
+        lock.acquire();
+        empty.wakeAll();
+        lock.release();
+        // wait a bit again
+        run2.join();
+        run3.join();
+        Lib.assertTrue(list.size() == 3, "all threads should have been woken");
+        //Lib.assertTrue(empty.waitQueue.size() == 0, "there should be no threads in queue");
+        System.out.println("cvTest10 passed!");
+    }
+
     public static void sleepFor1(){
 		System.out.println("a thread that calls sleepFor will timeout and return after x ticks if no other thread calls wake to wake it up");
         final Lock lock = new Lock();
@@ -294,7 +514,7 @@ public class Condition2 {
             System.out.println("thread 1 wakes up");
             lock.release();
         }) ;
-        printQueueContents();
+        //printQueueContents();
         KThread thread2 = new KThread( () -> {
             lock.acquire();
             c2.sleepFor(1000); //1st
@@ -302,7 +522,7 @@ public class Condition2 {
             System.out.println("thread 2 wakes up");
             lock.release();
         }) ;
-        printQueueContents();
+        //printQueueContents();
         KThread thread3 = new KThread( () -> {
             lock.acquire();
             c2.sleepFor(4000); //3rd
@@ -310,7 +530,7 @@ public class Condition2 {
             System.out.println("thread 3 wakes up");
             lock.release();
         }) ;
-        printQueueContents();
+        //printQueueContents();
 
         thread1.fork();
         thread2.fork();
@@ -318,18 +538,23 @@ public class Condition2 {
         thread1.join();
         thread2.join();
         thread3.join();
-        printQueueContents();
+        //printQueueContents();
     }
-    public static void printQueueContents() { //debugging function 
+    /*public static void printQueueContents() { 
         System.out.println("PRINTING THE WAIT QUEUE");
 		for (KThread kt : waitQueue) {//for each
 			System.out.println("Thread: " + kt.getName() );
 		}
-	}
+	} */
     public static void selfTest() {
-        //new InterlockTest();
-		//cvTest5();
+        new InterlockTest();
+		cvTest5();
+        cvTest6();
+        cvTest7();
+        cvTest8();
+        cvTest9();
+        cvTest10();
         //sleepFor2();
-        sleepFor4();
+        //sleepFor4();
     }
 }

@@ -68,6 +68,19 @@ public class Alarm {
         KThread.yield(); // Yield to allow other threads to run
     }
 
+    /**
+	 * Cancel any timer set by <i>thread</i>, effectively waking
+	 * up the thread immediately (placing it in the scheduler
+	 * ready set) and returning true.  If <i>thread</i> has no
+	 * timer set, return false.
+	 * 
+	 * <p>
+	 * @param thread the thread whose timer should be cancelled.
+	 */
+    public boolean cancel(KThread thread) {
+		return false;
+	}
+
     // test individual threads
     public static void alarmTest1() {
         int durations[] = {1000, 10 * 1000, 100 * 1000};
