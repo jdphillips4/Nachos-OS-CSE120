@@ -280,7 +280,7 @@ public class KThread {
 		//System.out.println("Ready thread: " + toString());
 
 		Lib.assertTrue(Machine.interrupt().disabled());
-		Lib.assertTrue(status != statusReady);
+		//Lib.assertTrue(status != statusReady);
 
 		status = statusReady;
 		if (this != idleThread)

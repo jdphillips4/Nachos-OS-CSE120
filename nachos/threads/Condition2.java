@@ -51,7 +51,7 @@ public class Condition2 {
 	public void wake() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
         long t = Machine.timer().getTime();
-		if( ! waitQueue.isEmpty() ){ //do we iterate thru queue
+		if( !waitQueue.isEmpty() ){ //do we iterate thru queue
 			boolean intStatus = Machine.interrupt().disable();
 			KThread nextThread = waitQueue.removeFirst(); // ready 1 thread. does order remove matter
             ThreadedKernel.alarm.cancel(nextThread);

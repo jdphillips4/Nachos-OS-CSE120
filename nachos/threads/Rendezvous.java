@@ -78,8 +78,6 @@ public class Rendezvous {
             otherThread.value = value; // waiting thread gets value of current thread
             otherThread.condition.wake();
 
-            
-
             lock.release();
             return otherValue;
         }
@@ -124,9 +122,8 @@ public class Rendezvous {
         // return value;
     }
 
+    //threads exchanging values on different instances of Rendezvous operate independently of each other. multiple exchanges w correcttags too
     public static void test2(){
-        System.out.println("threads exchanging values on different instances of Rendezvous operate independently of each other. multiple exchanges w correcttags too");
-        System.out.println("r instance 1");
         final Rendezvous r = new Rendezvous();
         KThread t1 = new KThread( new Runnable () {
             public void run() {
@@ -254,8 +251,8 @@ public class Rendezvous {
     
         public static void selfTest() {
         // place calls to your Rendezvous tests that you implement here
-        rendezTest1();
-        //test2();
+            rendezTest1();
+            //test2();
         }
 
   

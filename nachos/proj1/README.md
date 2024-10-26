@@ -10,4 +10,9 @@ Group Members: Jordan Phillips, Sarena Pham, Kane Li
 
 **Part 4:** Our goal mainly had 2 key sections. In sleepFor, it adds a thread to the waitQueue. If the timer ends first, the thread is removed from the queue and moved to the ready queue. If wake() is called first, the thread cancels its alarm and is moved to the ready queue. Testing this mainly involved following the general recommendations on the assignment.
 
+**Part 5:** Here, we mainly utilized a hashmap and a lock for updating the hashmap. Whenever we updated the hashmap, we'd make sure to use the lock, and the hashmap itself would keep track of a special exchange class for each tab. Our tests are mainly built off the default ones given.
+
+### Overview
+Overall, the code works for the default cases and the test cases that we created, even with varying context switch configurations. Though part 5 rendevouz could use more testing, most parts seem to hold on fine. Sarena worked a lot in initial coding, Kane worked in writing test cases + cleaning, and Jordan worked on much of the initial parts as well as 3 and 5.
+
 Contributions: Kane Li: Part 1, 2, 3, 4. Mainly writing tests, debugging, and cleaning code.
