@@ -93,7 +93,6 @@ public class Condition {
 	 */
 	public void wake() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-
 		if (!waitQueue.isEmpty())
 			((Semaphore) waitQueue.removeFirst()).V();
 	}

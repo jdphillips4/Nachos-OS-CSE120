@@ -1,7 +1,6 @@
 package nachos.threads;
 
 import nachos.machine.*;
-import java.util.Queue;
 import java.util.PriorityQueue;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -36,10 +35,7 @@ public class Alarm {
 		for (SleepThread sleepThread : sleepThreadsQueue) {//for each
 			System.out.println("Thread: " + sleepThread.thread + ", Wake Time: " + sleepThread.wakeTime);
 		}
-	}
-	private void printThread(SleepThread st){
-		System.out.println("Thread to wake : "+ st.thread + ", Wake Time: " + st.wakeTime);
-	} */
+    } */
 
     // sleep thread for at minimum x ticks
     public void waitUntil(long x) {
@@ -68,15 +64,36 @@ public class Alarm {
         KThread.yield(); // Yield to allow other threads to run
     }
 
+    /**
+	 * Cancel any timer set by <i>thread</i>, effectively waking
+	 * up the thread immediately (placing it in the scheduler
+	 * ready set) and returning true.  If <i>thread</i> has no
+	 * timer set, return false.
+	 * 
+	 * <p>
+	 * @param thread the thread whose timer should be cancelled.
+	 */
+    public boolean cancel(KThread thread) {
+        Lib.assertTrue(Machine.interrupt().disabled());
+
+        // Find the matching sleepThread
+        for (SleepThread st : sleepThreadsQueue) {
+            if (st.thread == thread) {
+                sleepThreadsQueue.remove(st);
+                return true;
+            }
+        }
+        return false;
+	}
+
     // test individual threads
     public static void alarmTest1() {
         int durations[] = {1000, 10 * 1000, 100 * 1000};
-        long t0, t1;
 
         for (int d : durations) {
-            t0 = Machine.timer().getTime();
+            long t0 = Machine.timer().getTime();
             ThreadedKernel.alarm.waitUntil(d);
-            t1 = Machine.timer().getTime();
+            long t1 = Machine.timer().getTime();
             Lib.assertTrue((t1 - t0) > d);
         }
         System.out.println("alarmTest1 passed!");
