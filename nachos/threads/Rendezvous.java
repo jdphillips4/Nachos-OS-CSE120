@@ -64,9 +64,12 @@ public class Rendezvous {
             theHashMap.put(tag, toBeSwitched);
 
             condition.sleep(); //Block until another thread B arrives
+
+            //after waking
+            int returnVal = toBeSwitched.value; //will be modified to whatever thread Bs value was
             lock.release();
             theHashMap.remove(tag);
-            return toBeSwitched.value; //will be modified to whatever thread Bs value was
+            return returnVal; 
         }
         else { //tag already exists, need to swap
             ExchangeState otherThread = theHashMap.get(tag);
