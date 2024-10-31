@@ -584,7 +584,7 @@ public class KThread {
 			double num = 1.23;
 			for (int i = 0; i < 5; i++) {
 				num *= 1.621;
-				yield();
+				KThread.yield();
 			}
 		});
 
