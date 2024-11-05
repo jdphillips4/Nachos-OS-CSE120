@@ -202,10 +202,14 @@ public class KThread {
 		Machine.interrupt().disable();
 
 		parentLock.acquire();
-		if (joinMap.get(currentThread) != null) {
+		/*if (joinMap.get(currentThread) != null) {
 			joinMap.get(currentThread).ready();
 			//System.out.println("removing key: " + currentThread);
 			joinMap.remove(currentThread);			// signal parent
+		} */
+		if (currentThread.parent != null) {
+			currentThread.parent.ready();
+			currentThread.parent = null;
 		}
 		parentLock.release();
 
@@ -303,17 +307,20 @@ public class KThread {
 		Lib.debug(dbgThread, this +  " Joining to thread: " + currentThread);
 		//System.out.println(this + " Joining to thread: " + currentThread);
 		Lib.assertTrue(this != currentThread);		// can't call join on itself
-		Lib.assertTrue(joinMap.get(this) == null);// can't call join on the same thread 
+		//Lib.assertTrue(joinMap.get(this) == null);// can't call join on the same thread 
+		Lib.assertTrue(this.parent == null);
 
 		// atomically update parent
 		parentLock.acquire();
 		if (this.status != statusFinished) {
 			//System.out.println("adding key: " + this + " with val: " + currentThread);
-			joinMap.put(this, currentThread);
+			// joinMap.put(this, currentThread);
+			this.parent = currentThread;
 		}
 		parentLock.release();
 		// join won't terminate until child is done
-		while(joinMap.get(this) != null) {
+		//while(joinMap.get(this) != null) {
+		while(this.parent != null) {
 			boolean intStatus = Machine.interrupt().disable();
 			sleep(); // wait to be woken in finalize
 			Machine.interrupt().restore(intStatus);
@@ -490,7 +497,8 @@ public class KThread {
 	private static KThread idleThread = null;
 
 	private static Lock parentLock = new Lock();
-	private static HashMap<KThread, KThread> joinMap = new HashMap<KThread, KThread>(); 
+	private KThread parent = null;
+	// private static HashMap<KThread, KThread> joinMap = new HashMap<KThread, KThread>(); 
 
 	/**
 	 * Tests whether this module is working.
