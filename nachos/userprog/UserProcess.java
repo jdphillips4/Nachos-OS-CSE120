@@ -402,12 +402,12 @@ public class UserProcess {
 	/**
 	 * Handle the create() system call
 	 */
-	private int handleCreat() {
+	//private int handleCreat() {
 		// get the string name from the int register
 		// call system.creat() and let them handle it
 		// if -1 is returned, also return -1?
 		// else just return identifier
-	}
+	//}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
