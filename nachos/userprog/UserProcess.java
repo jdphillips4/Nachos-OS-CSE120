@@ -399,6 +399,16 @@ public class UserProcess {
 		return 0;
 	}
 
+	/**
+	 * Handle the create() system call
+	 */
+	private int handleCreat() {
+		// get the string name from the int register
+		// call system.creat() and let them handle it
+		// if -1 is returned, also return -1?
+		// else just return identifier
+	}
+
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
 			syscallRead = 6, syscallWrite = 7, syscallClose = 8,
@@ -471,6 +481,8 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		case syscallCreate:
+			return handleCreat(a0);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);

@@ -506,6 +506,7 @@ public class KThread {
 		joinTest7();
 		joinTest8();
 		joinTest9();
+		joinTest10();
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
 	}
@@ -721,5 +722,44 @@ public class KThread {
 		child2.join();
 		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
 		System.out.println("joinTest9 passed!");
+	}
+
+	// test method when the child is still running
+	private static void joinTest10() {
+		KThread child1 = new KThread( new Runnable () {
+			public void run() {
+				float count = 0;
+				for(int i=0; i<25; i++) {
+					count *= 1.62;
+				}
+			}
+		});
+		KThread child2 = new KThread( new Runnable () {
+			public void run() {
+				float count = 0;
+				for(int i=0; i<25; i++) {
+					count *= 1.62;
+				}
+			}
+		});
+		KThread child3 = new KThread( new Runnable () {
+			public void run() {
+				float count = 0;
+				for(int i=0; i<25; i++) {
+					count *= 1.62;
+				}
+			}
+		});
+		child1.setName("child1").fork();
+		child2.setName("child2").fork();
+		child3.setName("child3").fork();
+		// join while child1 is running
+		child1.join();
+		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+		child2.join();
+		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
+		child3.join();
+		Lib.assertTrue((child3.status == statusFinished), " Expected child3 to be finished.");
+		System.out.println("joinTest10 passed!");
 	}
 }
