@@ -1,6 +1,5 @@
 package nachos.threads;
 
-import java.util.HashMap;
 import nachos.machine.*;
 
 /**
@@ -196,22 +195,14 @@ public class KThread {
 	public static void finish() {
 		//ref b. add b thread var somewhere
 		//bThread.
+		Machine.interrupt().disable();
 		Lib.debug(dbgThread, "Finishing thread: " + currentThread);
 		//System.out.println("Finishing thread: " + currentThread);
 
-		Machine.interrupt().disable();
-
-		parentLock.acquire();
-		/*if (joinMap.get(currentThread) != null) {
-			joinMap.get(currentThread).ready();
-			//System.out.println("removing key: " + currentThread);
-			joinMap.remove(currentThread);			// signal parent
-		} */
 		if (currentThread.parent != null) {
 			currentThread.parent.ready();
 			currentThread.parent = null;
 		}
-		parentLock.release();
 
 		Machine.autoGrader().finishingCurrentThread();
 
@@ -301,30 +292,24 @@ public class KThread {
 	 */
 	public void join() { //this is child, currentThread is parent
 		//if a finished, b return immediately
+		boolean status = Machine.interrupt().disable();
 		if( this.status ==  statusFinished ) return;
 		//if a not finish, b wait inside of join till a finish. 
 		//when a finish, it resumes b
 		Lib.debug(dbgThread, this +  " Joining to thread: " + currentThread);
 		//System.out.println(this + " Joining to thread: " + currentThread);
 		Lib.assertTrue(this != currentThread);		// can't call join on itself
-		//Lib.assertTrue(joinMap.get(this) == null);// can't call join on the same thread 
 		Lib.assertTrue(this.parent == null);
 
 		// atomically update parent
-		parentLock.acquire();
 		if (this.status != statusFinished) {
-			//System.out.println("adding key: " + this + " with val: " + currentThread);
-			// joinMap.put(this, currentThread);
 			this.parent = currentThread;
 		}
-		parentLock.release();
 		// join won't terminate until child is done
-		//while(joinMap.get(this) != null) {
 		while(this.parent != null) {
-			boolean intStatus = Machine.interrupt().disable();
 			sleep(); // wait to be woken in finalize
-			Machine.interrupt().restore(intStatus);
 		}
+		Machine.interrupt().restore(status);
 	}
 
 	/**
@@ -498,7 +483,6 @@ public class KThread {
 
 	private static Lock parentLock = new Lock();
 	private KThread parent = null;
-	// private static HashMap<KThread, KThread> joinMap = new HashMap<KThread, KThread>(); 
 
 	/**
 	 * Tests whether this module is working.
@@ -762,12 +746,12 @@ public class KThread {
 		child2.setName("child2").fork();
 		child3.setName("child3").fork();
 		// join while child1 is running
+		child3.join();
+		Lib.assertTrue((child3.status == statusFinished), " Expected child3 to be finished.");
 		child1.join();
 		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
 		child2.join();
 		Lib.assertTrue((child2.status == statusFinished), " Expected child2 to be finished.");
-		child3.join();
-		Lib.assertTrue((child3.status == statusFinished), " Expected child3 to be finished.");
 		System.out.println("joinTest10 passed!");
 	}
 }

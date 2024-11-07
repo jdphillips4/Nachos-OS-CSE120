@@ -153,7 +153,7 @@ public class Condition2 {
                     Lib.assertTrue(list.size() == 5, "List should have 5 values.");
                     while(!list.isEmpty()) {
                         // context swith for the fun of it
-                        KThread.currentThread().yield();
+                        KThread.yield();
                         System.out.println("Removed " + list.removeFirst());
                     }
                     lock.release();
@@ -167,7 +167,7 @@ public class Condition2 {
                         list.add(i);
                         System.out.println("Added " + i);
                         // context swith for the fun of it
-                        KThread.currentThread().yield();
+                        KThread.yield();
                     }
                     //printQueueContents();
                     empty.wake();
