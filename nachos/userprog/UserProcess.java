@@ -403,14 +403,17 @@ public class UserProcess {
 	}
 
 	/**
-	 * Handle the open() system call
+	 * Handle the open() system call. implemnt open and create, 
+	 * before read and write.
+	 * create makes a file if not exist
+	 * opening a file to start reading/writing from it. never create
 	 */
 	private int handleOpen(int a0) {
 		Lib.debug(dbgProcess, "UserProcess.handleOpen");
 		//System.out.println("args, a0: " + a0);
 		String fileName = readVirtualMemoryString(a0, 256);
 		//System.out.println("fileName: " + fileName);
-		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false);
+		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false); //open doesnt create a file.
 		if (file == null) return -1;
 		int fd = -1;
 		for (int i=0; i<fileDescriptorTable.length; i++) {
@@ -440,6 +443,7 @@ public class UserProcess {
 
 	/**
 	 * Handle the write() system call
+	 * modify physical mem
 	 */
 	private int handleWrite(int a0, int a1, int a2) {
 		Lib.debug(dbgProcess, "UserProcess.handleWrite");
@@ -457,15 +461,16 @@ public class UserProcess {
 	 * Handle the create() system call
 	 */
 	private static final int MAX_FILES = 16; // Maximum number of open files
-private OpenFile[] fileDescriptors = new OpenFile[MAX_FILES];
+//private OpenFile[] fileDescriptors = new OpenFile[MAX_FILES];
 
 	private int handleCreat(int a0){ //the param is char *name idk
 		Lib.debug(dbgProcess, "UserProcess.handleCreat");
-		String filename = readVirtualMemoryString(a0, 256); 	//whats the max size.
+
+		String filename = readVirtualMemoryString(a0, 256); 	
 		if( filename == NULL ) return -1;
 	
 		//  create the file
-		OpenFile file = ThreadedKernel.fileSystem.open(filename, true); // true for create
+		OpenFile file = ThreadedKernel.fileSystem.open(filename, true); // true for create. already trunates
 		if (file == null) return -1; 
 	
 		int fd = -1;
