@@ -26,6 +26,9 @@ public class UserProcess {
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
+		fileDescriptorTable = new OpenFile[16];
+		fileDescriptorTable[0] = UserKernel.console.openForReading();
+		fileDescriptorTable[1] = UserKernel.console.openForWriting();
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 	}
@@ -385,7 +388,7 @@ public class UserProcess {
 	 * Handle the exit() system call.
 	 */
 	private int handleExit(int status) {
-	        // Do not remove this call to the autoGrader...
+	    // Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
@@ -397,6 +400,21 @@ public class UserProcess {
 		Kernel.kernel.terminate();
 
 		return 0;
+	}
+
+	/**
+	 * Handle the write() system call
+	 */
+	private int handleWrite(int a0, int a1, int a2) {
+		Lib.debug(dbgProcess, "UserProcess.handleWrite");
+		//System.out.println("args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		byte[] data = new byte[a2];
+		readVirtualMemory(a1, data);
+		OpenFile file = fileDescriptorTable[a0];
+		int written = file.write(data, 0, a2);
+		//int written = writeVirtualMemory(fileDescriptorTable[a0], data);
+		//System.out.println("written: " + written);
+		return written;
 	}
 
 	/**
@@ -481,6 +499,8 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		case syscallWrite:
+			return handleWrite(a0, a1, a2);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -539,4 +559,6 @@ public class UserProcess {
 	private static final int pageSize = Processor.pageSize;
 
 	private static final char dbgProcess = 'a';
+
+	private OpenFile[] fileDescriptorTable;
 }
