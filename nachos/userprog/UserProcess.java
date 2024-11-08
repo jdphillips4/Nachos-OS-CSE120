@@ -456,12 +456,34 @@ public class UserProcess {
 	/**
 	 * Handle the create() system call
 	 */
-	//private int handleCreat() {
-		// get the string name from the int register
-		// call system.creat() and let them handle it
-		// if -1 is returned, also return -1?
-		// else just return identifier
-	//}
+	private static final int MAX_FILES = 16; // Maximum number of open files
+private OpenFile[] fileDescriptors = new OpenFile[MAX_FILES];
+
+	private int handleCreat(int a0){ //the param is char *name idk
+		Lib.debug(dbgProcess, "UserProcess.handleCreat");
+		String filename = readVirtualMemoryString(a0, 256); 	//whats the max size.
+		if( filename == NULL ) return -1;
+	
+		//  create the file
+		OpenFile file = ThreadedKernel.fileSystem.open(filename, true); // true for create
+		if (file == null) return -1; 
+	
+		int fd = -1;
+		for (int i = 0; i < fileDescriptors.length; i++) {
+			if (fileDescriptors[i] == null) {
+				fd = i;
+				break;
+			}
+		}
+
+		if( fd == -1) {
+			file.close(); //cant store file
+			return -1;
+		}
+
+		fileDescriptors[fd] = file;
+		return fd;
+	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -535,6 +557,8 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		case syscallCreat:
+			return handleCreat(a0);
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallRead:
