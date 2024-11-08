@@ -9,25 +9,25 @@ int main (int argc, char *argv[])
 
    //test 1: create new file
     fd1 = creat(filename1);
-    if(fd == -1) write(1, "Failed to create testfile1.txt");
+    if(fd1 == -1) write(1, "Failed to create testfile1.txt", 16);
     else{
-        write( 1, "Successfully created testfile1.txt");
+        write( 1, "Successfully created testfile1.txt", 16);
         close(fd1);
     }
 
     //test 2: open existing file
     fd2 = open(filename1);
-    if(fd2==-1) write(1, "Failed to open testfile1.txt");
+    if(fd2==-1) write(1, "Failed to open testfile1.txt", 16);
     else{
-        write(1, "Successfully opened testfile1.txt");
+        write(1, "Successfully opened testfile1.txt", 16);
         close(fd2);
     }
 
     //test 3:
     fd3 = open(filename3);
-    if(fd3==-1) write(1, "Failed to open notexist.txt");
+    if(fd3==-1) write(1, "Failed to open notexist.txt", 16);
     else{
-        write(1, "this shouldnt run or u have an issue");
+        write(1, "this shouldnt run or u have an issue", 16);
         close(fd3);
     }
 
