@@ -403,6 +403,42 @@ public class UserProcess {
 	}
 
 	/**
+	 * Handle the open() system call
+	 */
+	private int handleOpen(int a0) {
+		Lib.debug(dbgProcess, "UserProcess.handleOpen");
+		//System.out.println("args, a0: " + a0);
+		String fileName = readVirtualMemoryString(a0, 256);
+		//System.out.println("fileName: " + fileName);
+		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false);
+		if (file == null) return -1;
+		int fd = -1;
+		for (int i=0; i<fileDescriptorTable.length; i++) {
+			if (fileDescriptorTable[i] == null) {
+				fd = i;
+				break;
+			}
+		}
+		if (fd == -1) return -1;
+		fileDescriptorTable[fd] = file;
+		return fd;
+	}
+
+	/**
+	 * Handle the read() system call
+	 */
+	private int handleRead(int a0, int a1, int a2) {
+		Lib.debug(dbgProcess, "UserProcess.handleWrite");
+		//System.out.println("args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		OpenFile file = fileDescriptorTable[a0];
+		if (file == null) return -1;
+		byte[] data = new byte[a2];
+		int fileRead = file.read(data, 0, a2);
+		int transferred = writeVirtualMemory(a1, data);
+		return transferred;
+	}
+
+	/**
 	 * Handle the write() system call
 	 */
 	private int handleWrite(int a0, int a1, int a2) {
@@ -411,9 +447,9 @@ public class UserProcess {
 		byte[] data = new byte[a2];
 		readVirtualMemory(a1, data);
 		OpenFile file = fileDescriptorTable[a0];
+		if (file == null) return -1;
 		int written = file.write(data, 0, a2);
-		//int written = writeVirtualMemory(fileDescriptorTable[a0], data);
-		//System.out.println("written: " + written);
+		if (written < a2) return -1;
 		return written;
 	}
 
@@ -499,6 +535,10 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		case syscallOpen:
+			return handleOpen(a0);
+		case syscallRead:
+			return handleRead(a0, a1, a2);
 		case syscallWrite:
 			return handleWrite(a0, a1, a2);
 
