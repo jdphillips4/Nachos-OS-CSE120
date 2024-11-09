@@ -508,6 +508,40 @@ public class UserProcess {
 		return 0;
 	}
 
+	/**
+	 * 
+	 * @param a0
+	 * @param a1
+	 * @param a2
+	 * @return returns the child process's process ID, which can be passed to
+     * join(). On error, returns -1.
+	 */
+	private int handleExec( int a0, int a1, int a2 ){
+	String executableName = readVirtualMemoryString(a0, 256);
+    if (executableName == null)  return -1; // Invalid executable name
+	//do we check if the string includes .coff ??
+    // Step 2: Read the argument count
+    int argc = a1;
+    if (argc < 0) return -1; // Invalid argument count
+    // Step 3: Read the arguments argv is an array of pointers to null-terminated strings
+    String[] argv = new String[argc];
+		//read virtual mem stuff
+
+    UserProcess childProcess = UserProcess.newUserProcess();
+    if (childProcess == null) return -1; // Failed to create new process
+
+    if (!childProcess.execute(executableName, argv))  return -1; // Failed to execute the process
+
+    return childProcess.getProcessID(); 
+	}
+	/**
+	 * need to implement this for handleExec
+	 * @return
+	 */
+	private int getProcessID(){
+		return 0;
+	}
+
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
 			syscallRead = 6, syscallWrite = 7, syscallClose = 8,
@@ -590,6 +624,8 @@ public class UserProcess {
 			return handleWrite(a0, a1, a2);
 		case syscallUnlink:
 			return handleUnlink(a0);
+		case syscallExec:
+			return handleExec( a0, a1, a2);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
