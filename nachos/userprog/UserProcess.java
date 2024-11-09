@@ -7,6 +7,8 @@ import nachos.vm.*;
 
 import java.io.EOFException;
 
+import javax.annotation.processing.Processor;
+
 /**
  * Encapsulates the state of a user process that is not contained in its user
  * thread (or threads). This includes its address translation state, a file
@@ -461,6 +463,7 @@ public class UserProcess {
 
 	private int handleCreat(int a0){ //the param is char *name idk
 		Lib.debug(dbgProcess, "UserProcess.handleCreat");
+		if( getOpenCount() == MAX_FILES ) return -1; //dont create anymore files. 
 		String filename = readVirtualMemoryString(a0, 256); 	//whats the max size.
 		if( filename == null ) return -1;
 	
@@ -472,6 +475,7 @@ public class UserProcess {
 		for (int i = 0; i < fileDescriptorTable.length; i++) {
 			if (fileDescriptorTable[i] == null) {
 				fd = i;
+				openFiles++;
 				break;
 			}
 		}
@@ -483,6 +487,16 @@ public class UserProcess {
 
 		fileDescriptorTable[fd] = file;
 		return fd;
+	}
+
+	//delete a file
+	private int handleUnlink(int a0){
+		Lib.debug(dbgProcess, "User Process.handleUnlink");
+		String filename = readVirtualMemoryString(a0, 256); 
+		if( filename == null ) return -1;
+		boolean deleted = ThreadedKernel.fileSystem.remove(filename); //remove in filesystem.java
+		if( deleted == false ) return -1; //file not deleted.
+		return 0;
 	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
@@ -565,6 +579,8 @@ public class UserProcess {
 			return handleRead(a0, a1, a2);
 		case syscallWrite:
 			return handleWrite(a0, a1, a2);
+		case syscallUnlink:
+			return handleUnlink(a0);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
