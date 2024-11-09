@@ -403,17 +403,14 @@ public class UserProcess {
 	}
 
 	/**
-	 * Handle the open() system call. implemnt open and create, 
-	 * before read and write.
-	 * create makes a file if not exist
-	 * opening a file to start reading/writing from it. never create
+	 * Handle the open() system call
 	 */
 	private int handleOpen(int a0) {
 		Lib.debug(dbgProcess, "UserProcess.handleOpen");
 		//System.out.println("args, a0: " + a0);
 		String fileName = readVirtualMemoryString(a0, 256);
 		//System.out.println("fileName: " + fileName);
-		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false); //open doesnt create a file.
+		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false);
 		if (file == null) return -1;
 		int fd = -1;
 		for (int i=0; i<fileDescriptorTable.length; i++) {
@@ -443,7 +440,6 @@ public class UserProcess {
 
 	/**
 	 * Handle the write() system call
-	 * modify physical mem
 	 */
 	private int handleWrite(int a0, int a1, int a2) {
 		Lib.debug(dbgProcess, "UserProcess.handleWrite");
@@ -465,17 +461,16 @@ public class UserProcess {
 
 	private int handleCreat(int a0){ //the param is char *name idk
 		Lib.debug(dbgProcess, "UserProcess.handleCreat");
-
-		String filename = readVirtualMemoryString(a0, 256); 	
-		if( filename == NULL ) return -1;
+		String filename = readVirtualMemoryString(a0, 256); 	//whats the max size.
+		if( filename == null ) return -1;
 	
 		//  create the file
-		OpenFile file = ThreadedKernel.fileSystem.open(filename, true); // true for create. already trunates
+		OpenFile file = ThreadedKernel.fileSystem.open(filename, true); // true for create
 		if (file == null) return -1; 
 	
 		int fd = -1;
-		for (int i = 0; i < fileDescriptors.length; i++) {
-			if (fileDescriptors[i] == null) {
+		for (int i = 0; i < fileDescriptorTable.length; i++) {
+			if (fileDescriptorTable[i] == null) {
 				fd = i;
 				break;
 			}
@@ -486,7 +481,7 @@ public class UserProcess {
 			return -1;
 		}
 
-		fileDescriptors[fd] = file;
+		fileDescriptorTable[fd] = file;
 		return fd;
 	}
 
@@ -562,8 +557,8 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
-		case syscallCreat:
-			return handleCreat(a0);
+		case syscallCreate:
+			return handleCreat(a0); //doesnt work since we didnt implement close yet
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallRead:
