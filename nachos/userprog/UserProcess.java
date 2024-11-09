@@ -1,5 +1,5 @@
 package nachos.userprog;
-
+import nachos.machine.Processor;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -7,7 +7,7 @@ import nachos.vm.*;
 
 import java.io.EOFException;
 
-import javax.annotation.processing.Processor;
+//import javax.annotation.processing.Processor;
 
 /**
  * Encapsulates the state of a user process that is not contained in its user
@@ -35,6 +35,16 @@ public class UserProcess {
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 	}
 
+	//from fileSystem.java
+	private int getOpenCount() {
+        int count = 0;
+        for (OpenFile file : fileDescriptorTable) {
+            if (file != null) {
+                count++;
+            }
+        }
+        return count;
+    }
 	/**
 	 * Allocate and return a new process of the correct class. The class name is
 	 * specified by the <tt>nachos.conf</tt> key
@@ -475,7 +485,6 @@ public class UserProcess {
 		for (int i = 0; i < fileDescriptorTable.length; i++) {
 			if (fileDescriptorTable[i] == null) {
 				fd = i;
-				openFiles++;
 				break;
 			}
 		}
