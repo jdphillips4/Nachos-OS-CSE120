@@ -1,22 +1,75 @@
 #include "syscall.h"
-//coff is already made when make
-/**
- * If this or another
- * process has the file open, the underlying file system
- * implementation in StubFileSystem will cleanly handle this situation
- * (this process will ask the file system to remove the file, but the
- * file will not actually be deleted by the file system until all
- * other processes are done with the file).
- */
-int main (int argc, char *argv[]){
-   char *filename1 = "testfile1.txt"; //create new file 
-   int fd1;
-   fd1 = creat(filename1);
-   open(filename1);
-   if( unlink(filename1) == -1 ) write(1, "cannot delete testfile1.txt since it's still open. process not done.", 16);
-   //close testfile1.txt so we can unlink
-   close(fd1);
-   if( unlink(filename1) == 0 ) write(1, "successfully unlinked testfile1.txt", 16);
 
-   //make a bunch of processes use the file, like have it open somewhere?
+int main (int argc, char *argv[]) {
+    char *filename1 = "testfile1.txt"; // create new file 
+    int fd1;
+    
+    // Create the file
+    fd1 = creat(filename1);
+    if (fd1 == -1) {
+        write(1, "Failed to create testfile1.txt\n", 34);
+        return -1;
+    }
+
+    // Open the file
+    int fd2 = open(filename1);
+    if (fd2 == -1) {
+        write(1, "Failed to open testfile1.txt\n", 30);
+        close(fd1); // Close the file descriptor
+        return -1;
+    }
+
+    // Attempt to unlink the file while it's open
+    if (unlink(filename1) == -1) {
+        write(1, "Cannot delete testfile1.txt since it's still open.\n", 54);
+    }
+
+    // Close the file to allow unlinking
+    close(fd2);
+    if (unlink(filename1) == 0) {
+        write(1, "Successfully unlinked testfile1.txt\n", 37);
+    } else {
+        write(1, "Failed to unlink testfile1.txt\n", 33);
+    }
+
+    //  create multiple processes here to test concurrent access
+    // For example, using exec to run another program that opens the same file
+
+   char *filename2 = "testfile2.txt"; // create new file but keep open
+   int fd3;
+
+   fd3 = creat(filename1);
+    if (fd3 == -1) {
+        write(1, "Failed to create testfile1.txt\n", 34);
+        return -1;
+    }
+
+    // create testfile2
+    int fd3 = creat(filename2);
+    if (fd3 == -1) {
+        write(1, "Failed to create testfile2.txt\n", 30);
+        return -1;
+    }
+
+   //make multiple processes access testfile2. attempt to unlink should fail
+
+   // before making more processes, Open the second file
+    int fd4 = open(filename2);
+    if (fd4 == -1) {
+        write(1, "Failed to open testfile2.txt\n", 30);
+        close(fd3); // Close the file descriptor
+        return -1;
+    }
+
+    // Execute a new process that tries to open the same file
+    int exec_result = exec("test_exec", 0, 0); // Execute the program 
+    if (exec_result == -1) {
+        write(1, "Failed to execute test_exec\n", 30);
+        close(fd4); // Close the file descriptor
+        return -1;
+    }
+
+    // Close the second file descriptor
+    close(fd4);
+    return 0;
 }
