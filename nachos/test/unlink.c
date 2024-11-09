@@ -36,18 +36,9 @@ int main (int argc, char *argv[]) {
     // For example, using exec to run another program that opens the same file
 
    char *filename2 = "testfile2.txt"; // create new file but keep open
-   int fd3;
-
-   fd3 = creat(filename1);
+   int fd3 = creat(filename1);
     if (fd3 == -1) {
-        write(1, "Failed to create testfile1.txt\n", 34);
-        return -1;
-    }
-
-    // create testfile2
-    int fd3 = creat(filename2);
-    if (fd3 == -1) {
-        write(1, "Failed to create testfile2.txt\n", 30);
+        write(1, "Failed to create testfile2.txt\n", 34);
         return -1;
     }
 
@@ -57,7 +48,7 @@ int main (int argc, char *argv[]) {
     int fd4 = open(filename2);
     if (fd4 == -1) {
         write(1, "Failed to open testfile2.txt\n", 30);
-        close(fd3); // Close the file descriptor
+        close(fd4); // Close the file descriptor
         return -1;
     }
 
