@@ -13,8 +13,8 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    char buf[120];
-    int bytesRead = read(fd, buf, 100);
+    char buf[200];
+    int bytesRead = read(fd, buf, 200);
 	printf("bytesRead: %d\n", bytesRead);
 
     buf[bytesRead] = '\0';

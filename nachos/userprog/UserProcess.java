@@ -1,5 +1,4 @@
 package nachos.userprog;
-import nachos.machine.Processor;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -28,7 +27,7 @@ public class UserProcess {
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
-		fileDescriptorTable = new OpenFile[16];
+		fileDescriptorTable = new OpenFile[MAX_FILES];
 		fileDescriptorTable[0] = UserKernel.console.openForReading();
 		fileDescriptorTable[1] = UserKernel.console.openForWriting();
 		for (int i = 0; i < numPhysPages; i++)
@@ -36,15 +35,15 @@ public class UserProcess {
 	}
 
 	//from fileSystem.java
-	private int getOpenCount() {
-        int count = 0;
-        for (OpenFile file : fileDescriptorTable) {
-            if (file != null) {
-                count++;
-            }
-        }
-        return count;
-    }
+	// private int getOpenCount() {
+    //     int count = 0;
+    //     for (OpenFile file : fileDescriptorTable) {
+    //         if (file != null) {
+    //             count++;
+    //         }
+    //     }
+    //     return count;
+    // }
 	/**
 	 * Allocate and return a new process of the correct class. The class name is
 	 * specified by the <tt>nachos.conf</tt> key
@@ -418,11 +417,9 @@ public class UserProcess {
 	 * Handle the open() system call
 	 */
 	private int handleOpen(int a0) {
-		Lib.debug(dbgProcess, "UserProcess.handleOpen");
-		//System.out.println("args, a0: " + a0);
+		Lib.debug(dbgProcess, "args, a0: " + a0);
 		String fileName = readVirtualMemoryString(a0, 256);
-		//System.out.println("fileName: " + fileName);
-		OpenFile file =  ThreadedKernel.fileSystem.open(fileName, false);
+		OpenFile file = ThreadedKernel.fileSystem.open(fileName, false);
 		if (file == null) return -1;
 		int fd = -1;
 		for (int i=0; i<fileDescriptorTable.length; i++) {
@@ -431,49 +428,20 @@ public class UserProcess {
 				break;
 			}
 		}
-		if (fd == -1) return -1;
+		if (fd == -1) {
+			file.close();
+			return -1;
+		}
 		fileDescriptorTable[fd] = file;
 		return fd;
 	}
 
 	/**
-	 * Handle the read() system call
-	 */
-	private int handleRead(int a0, int a1, int a2) {
-		Lib.debug(dbgProcess, "UserProcess.handleWrite");
-		//System.out.println("args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
-		OpenFile file = fileDescriptorTable[a0];
-		if (file == null) return -1;
-		byte[] data = new byte[a2];
-		int fileRead = file.read(data, 0, a2);
-		int transferred = writeVirtualMemory(a1, data);
-		return transferred;
-	}
-
-	/**
-	 * Handle the write() system call
-	 */
-	private int handleWrite(int a0, int a1, int a2) {
-		Lib.debug(dbgProcess, "UserProcess.handleWrite");
-		//System.out.println("args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
-		byte[] data = new byte[a2];
-		readVirtualMemory(a1, data);
-		OpenFile file = fileDescriptorTable[a0];
-		if (file == null) return -1;
-		int written = file.write(data, 0, a2);
-		if (written < a2) return -1;
-		return written;
-	}
-
-	/**
 	 * Handle the create() system call
 	 */
-	private static final int MAX_FILES = 16; // Maximum number of open files
-//private OpenFile[] fileDescriptors = new OpenFile[MAX_FILES];
-
 	private int handleCreat(int a0){ //the param is char *name idk
 		Lib.debug(dbgProcess, "UserProcess.handleCreat");
-		if( getOpenCount() == MAX_FILES ) return -1; //dont create anymore files. 
+		if( ThreadedKernel.fileSystem.getOpenCount() == MAX_FILES ) return -1; //dont create anymore files. 
 		String filename = readVirtualMemoryString(a0, 256); 	//whats the max size.
 		if( filename == null ) return -1;
 	
@@ -496,6 +464,72 @@ public class UserProcess {
 
 		fileDescriptorTable[fd] = file;
 		return fd;
+	}
+
+	/**
+	 * Handle the read() system call
+	 */
+	private int handleRead(int a0, int a1, int a2) {
+		Lib.debug(dbgProcess, "args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		if (a0 < 0 || a0 > 15) return -1;	// check for a valid file descriptor
+		OpenFile file = fileDescriptorTable[a0];
+		if (file == null) return -1;		// check for a valid file descriptor
+		int read = 0;
+		byte[] page = new byte[pageSize];
+		while (read < a2) {
+			Lib.debug(dbgProcess, "a1 ptr: " + a1);
+			int size = Math.min(pageSize, a2 - read);
+			int fileRead = file.read(page, 0, size);
+			Lib.debug(dbgProcess, "fileRead: " + fileRead);
+			if (fileRead == -1) return -1; // if error in reading file
+			int transferred = writeVirtualMemory(a1, page, 0, fileRead);
+			Lib.debug(dbgProcess, "transferred: " + transferred);
+			Lib.debug(dbgProcess, "data: " + new String(page, 0, fileRead));
+			a1 += transferred;		// move our pointer by however much we just added
+			read += transferred;
+			// stop when nothing more can be read
+			if (transferred == 0) break;
+		}
+		return read;
+	}
+
+	/**
+	 * Handle the write() system call
+	 */
+	private int handleWrite(int a0, int a1, int a2) {
+		Lib.debug(dbgProcess, "args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		if(a2 < 0) return -1; // can't write a negative length
+		if (a0 < 0 || a0 > 15) return -1;	// check for a valid file descriptor
+		OpenFile file = fileDescriptorTable[a0];
+		if (file == null) return -1;		// check for a valid file descriptor
+
+		// write in page size amounts over and over
+		int written = 0; 
+		int size = 0; 
+		int transferred = 0;
+		int pageWritten = 0;
+		byte[] page = new byte[pageSize];
+		while (written < a2) {
+			size = Math.min(pageSize, a2 - written);
+			transferred = readVirtualMemory(a1, page);
+			if (transferred < size) return -1;
+			pageWritten = file.write(page, 0, size);
+			if (pageWritten == -1 || pageWritten < size) return -1;
+			written += pageWritten;
+			a1 += pageWritten;
+		}
+		return written;
+	}
+
+	/**
+	 * Handle the close() system call
+	 */
+	private int handleClose(int a0) {
+		Lib.debug(dbgProcess, "UserProcess.handleClose");
+		if (fileDescriptorTable[a0] == null) return -1; // can't close non-existing descriptor
+		fileDescriptorTable[a0].close();
+		fileDescriptorTable[a0] = null;
+		return 0;
 	}
 
 	//delete a file
@@ -622,6 +656,8 @@ public class UserProcess {
 			return handleRead(a0, a1, a2);
 		case syscallWrite:
 			return handleWrite(a0, a1, a2);
+		case syscallClose:
+			return handleClose(a0);
 		case syscallUnlink:
 			return handleUnlink(a0);
 		case syscallExec:
@@ -685,5 +721,6 @@ public class UserProcess {
 
 	private static final char dbgProcess = 'a';
 
+	private static final int MAX_FILES = 16; // Maximum number of open files
 	private OpenFile[] fileDescriptorTable;
 }
