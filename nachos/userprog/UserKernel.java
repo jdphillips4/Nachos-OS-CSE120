@@ -1,5 +1,7 @@
 package nachos.userprog;
 
+import java.util.LinkedList;
+
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -21,6 +23,12 @@ public class UserKernel extends ThreadedKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+
+		// initialize our free pages
+		int numPhysPages = Machine.processor().getNumPhysPages();
+		for(i=0; i<numPhysPages; i++) {
+			freePages.add(i);
+		}
 
 		console = new SynchConsole(Machine.console());
 
@@ -130,4 +138,7 @@ public class UserKernel extends ThreadedKernel {
 
 	// dummy variables to make javac smarter
 	private static Coff dummy1 = null;
+
+	// linked list of free pages
+	public LinkedList<Integer> freePages;
 }

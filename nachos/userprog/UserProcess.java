@@ -687,7 +687,6 @@ public class UserProcess {
 			Lib.assertNotReached("Unexpected exception");
 		}
 	}
-
 	/** The program being run by this process. */
 	protected Coff coff;
 
