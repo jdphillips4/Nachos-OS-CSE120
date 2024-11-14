@@ -8,6 +8,7 @@ import java.io.EOFException;
 
 //import javax.annotation.processing.Processor;
 
+
 /**
  * Encapsulates the state of a user process that is not contained in its user
  * thread (or threads). This includes its address translation state, a file
@@ -25,14 +26,14 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
+		// int numPhysPages = Machine.processor().getNumPhysPages();
+		// pageTable = new TranslationEntry[numPhysPages];
 		fileDescriptorTable = new OpenFile[MAX_FILES];
 		fileDescriptorTable[0] = UserKernel.console.openForReading();
 		fileDescriptorTable[1] = UserKernel.console.openForWriting();
-		for (int i = 0; i < numPhysPages; i++)
-			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
-	}
+	// 	for (int i = 0; i < numPhysPages; i++)
+	// 		pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+	 }
 
 	/**
 	 * Allocate and return a new process of the correct class. The class name is
@@ -117,7 +118,8 @@ public class UserProcess {
 		}
 
 		return null;
-	}
+	}//take the 1st free page or make function in kernel that sends out 1st avaibale page
+	//static var in kernel? 
 
 	/**
 	 * Transfer data from this process's virtual memory to all of the specified
@@ -320,16 +322,24 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		boolean readOnly = false;
+		pageTable = new TranslationEntry[numPages]; //initialize pagetable (virtual) program needs. not the whole memory
+		//map virtual to physical non continous too
+		if( numPages > UserKernel.freePages.size() ){
 			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory");
+			Lib.debug(dbgProcess, "\tinsufficient physical memory");//error if not enough free pages
 			return false;
 		}
 
+		UserKernel.pageLock.acquire(); 
+		//TranslationEntry.readOnly should be set to true if the page 
+		//is coming from a COFF section which is marked 
+		//as read-only. You can determine this status using 
+		//the method CoffSection.isReadOnly().
+		
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
-
 			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 					+ " section (" + section.getLength() + " pages)");
 
@@ -337,10 +347,15 @@ public class UserProcess {
 				int vpn = section.getFirstVPN() + i;
 
 				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				//make it able to split memory
+				int availPage = UserKernel.freePages.pop();
+				pageTable[vpn] = new TranslationEntry(vpn, availPage , true, section.isReadOnly(), false, false);
+				section.loadPage( i, availPage ); //loads into physical memory
 			}
 		}
-
+		UserKernel.pageLock.release();
+		//exiting a process frees a page
+		//still read/write virtual mem
 		return true;
 	}
 
