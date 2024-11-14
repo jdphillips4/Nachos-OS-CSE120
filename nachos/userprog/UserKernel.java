@@ -15,8 +15,6 @@ public class UserKernel extends ThreadedKernel {
 	 */
 	public UserKernel() {
 		super();
-		pageLock = new Lock();
-		freePages = new LinkedList<Integer>();
 	}
 
 	/**
@@ -25,6 +23,10 @@ public class UserKernel extends ThreadedKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+
+		// page Lock stuff
+		pageLock = new Lock();
+		freePages = new LinkedList<Integer>();
 
 		// initialize our free pages. new way: page table (virtual) only has pages it needs
 		int numPhysPages = Machine.processor().getNumPhysPages();
@@ -144,5 +146,4 @@ public class UserKernel extends ThreadedKernel {
 	// linked list of free pages
 	public static LinkedList<Integer> freePages;
 	public static Lock pageLock;
-	
 }

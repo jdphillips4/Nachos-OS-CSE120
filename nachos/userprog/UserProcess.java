@@ -118,8 +118,7 @@ public class UserProcess {
 		}
 
 		return null;
-	}//take the 1st free page or make function in kernel that sends out 1st avaibale page
-	//static var in kernel? 
+	}
 
 	/**
 	 * Transfer data from this process's virtual memory to all of the specified
@@ -148,6 +147,7 @@ public class UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		// update dirty and used
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
@@ -190,6 +190,7 @@ public class UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		// update dirty and used
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
@@ -237,6 +238,8 @@ public class UserProcess {
 		numPages = 0;
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
+			Lib.debug(dbgProcess, "found " + section.getName()
+					+ " section (" + section.getLength() + " pages)");
 			if (section.getFirstVPN() != numPages) {
 				coff.close();
 				Lib.debug(dbgProcess, "\tfragmented executable");
@@ -322,7 +325,6 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		boolean readOnly = false;
 		pageTable = new TranslationEntry[numPages]; //initialize pagetable (virtual) program needs. not the whole memory
 		//map virtual to physical non continous too
 		if( numPages > UserKernel.freePages.size() ){
@@ -332,16 +334,12 @@ public class UserProcess {
 		}
 
 		UserKernel.pageLock.acquire(); 
-		//TranslationEntry.readOnly should be set to true if the page 
-		//is coming from a COFF section which is marked 
-		//as read-only. You can determine this status using 
-		//the method CoffSection.isReadOnly().
-		
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 					+ " section (" + section.getLength() + " pages)");
+			boolean isReadOnly = section.isReadOnly();
 
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
@@ -349,13 +347,16 @@ public class UserProcess {
 				// for now, just assume virtual addresses=physical addresses
 				//make it able to split memory
 				int availPage = UserKernel.freePages.pop();
-				pageTable[vpn] = new TranslationEntry(vpn, availPage , true, section.isReadOnly(), false, false);
+				pageTable[vpn] = new TranslationEntry(vpn, availPage , true, isReadOnly, false, false);
 				section.loadPage( i, availPage ); //loads into physical memory
 			}
 		}
+		// allocate stack and argument pages
+		for (int i = numPages - 9; i<numPages; i++) {
+			int freePage = UserKernel.freePages.pop();
+			pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
+		}
 		UserKernel.pageLock.release();
-		//exiting a process frees a page
-		//still read/write virtual mem
 		return true;
 	}
 
@@ -363,6 +364,12 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		UserKernel.pageLock.acquire();
+		for(TranslationEntry entry: pageTable) {
+			// for every virtual page, add its physical page back
+			UserKernel.freePages.add(entry.ppn);
+		}
+		UserKernel.pageLock.release();
 	}
 
 	/**

@@ -13,6 +13,7 @@
 int
 main (int argc, char *argv[])
 {
+	printf("Program loaded!");
     char *str = "\nroses are red\nviolets are blue\nI love Nachos\nand so do you\n\n";
     
     while (*str) {
