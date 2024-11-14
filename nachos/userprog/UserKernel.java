@@ -15,6 +15,8 @@ public class UserKernel extends ThreadedKernel {
 	 */
 	public UserKernel() {
 		super();
+		pageLock = new Lock();
+		freePages = new LinkedList<Integer>();
 	}
 
 	/**
@@ -24,9 +26,9 @@ public class UserKernel extends ThreadedKernel {
 	public void initialize(String[] args) {
 		super.initialize(args);
 
-		// initialize our free pages
+		// initialize our free pages. new way: page table (virtual) only has pages it needs
 		int numPhysPages = Machine.processor().getNumPhysPages();
-		for(i=0; i<numPhysPages; i++) {
+		for( int i=0; i<numPhysPages; i++) {
 			freePages.add(i);
 		}
 
@@ -140,5 +142,7 @@ public class UserKernel extends ThreadedKernel {
 	private static Coff dummy1 = null;
 
 	// linked list of free pages
-	public LinkedList<Integer> freePages;
+	public static LinkedList<Integer> freePages;
+	public static Lock pageLock;
+	
 }
