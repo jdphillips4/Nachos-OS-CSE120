@@ -148,19 +148,32 @@ public class UserProcess {
 	 */
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
 		// update dirty and used
-		Lib.assertTrue(offset >= 0 && length >= 0
-				&& offset + length <= data.length);
-
+		Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 		byte[] memory = Machine.processor().getMemory();
-
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		if (vaddr < 0 || vaddr >= numPages * pageSize) {
 			return 0;
-
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
-
-		return amount;
+		}
+		int read = 0;			// how much we have read so far
+		while(read < length) {
+			int vpage = vaddr / pageSize;
+			int voffset = vaddr % pageSize;
+			TranslationEntry entry = pageTable[vpage];
+			int ppn = entry.ppn;
+			if (!entry.valid) return 0;
+			int paddr = ppn * pageSize + voffset;
+			int amount = Math.min(length - read, pageSize - voffset);
+			Lib.debug(dbgProcess, "vaddr: " + vaddr);
+			Lib.debug(dbgProcess, "paddr: " + paddr);
+			try {
+				System.arraycopy(memory, paddr, data, offset + read, amount);
+			} catch (IndexOutOfBoundsException exception) {
+				return read;
+			}
+			read += amount;
+			vaddr += amount;
+			pageTable[vpage].used = true;
+		}
+		return read;
 	}
 
 	/**
@@ -195,15 +208,32 @@ public class UserProcess {
 				&& offset + length <= data.length);
 
 		byte[] memory = Machine.processor().getMemory();
-
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		if (vaddr < 0 || (vaddr + length) >= numPages * pageSize) {
 			return 0;
+		}
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
-
-		return amount;
+		int written = 0;
+		while(written < length) {
+			int vpage = vaddr / pageSize;
+			int voffset = vaddr % pageSize;
+			TranslationEntry entry = pageTable[vpage];
+			if (!entry.valid || entry.readOnly) return 0;
+			int ppn = entry.ppn;
+			int paddr = ppn * pageSize + voffset;
+			int amount = Math.min(length - written, pageSize - voffset);
+			Lib.debug(dbgProcess, "write vaddr: " + vaddr);
+			Lib.debug(dbgProcess, "write paddr: " + paddr);
+			try {
+				System.arraycopy(data, offset + written, memory, paddr, amount);
+			} catch (IndexOutOfBoundsException exception) {
+				return written;
+			}
+			written += amount;
+			vaddr += amount;
+			pageTable[vpage].used = true;
+			pageTable[vpage].dirty = true;
+		}
+		return written;
 	}
 
 	/**
@@ -346,13 +376,15 @@ public class UserProcess {
 
 				// for now, just assume virtual addresses=physical addresses
 				//make it able to split memory
-				int availPage = UserKernel.freePages.pop();
+				// int availPage = UserKernel.freePages.pop();
+				int availPage = UserKernel.freePages.pollLast();
 				pageTable[vpn] = new TranslationEntry(vpn, availPage , true, isReadOnly, false, false);
 				section.loadPage( i, availPage ); //loads into physical memory
 			}
 		}
 		// allocate stack and argument pages
-		for (int i = numPages - 9; i<numPages; i++) {
+		//for (int i = numPages - 9; i<numPages; i++) {
+		for (int i = numPages - 1; i >= numPages - 9; i--) {
 			int freePage = UserKernel.freePages.pop();
 			pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
 		}
@@ -509,7 +541,7 @@ public class UserProcess {
 	 * Handle the write() system call
 	 */
 	private int handleWrite(int a0, int a1, int a2) {
-		Lib.debug(dbgProcess, "args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		Lib.debug(dbgProcess, "HANDLEWRITE args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
 		if(a2 < 0) return -1; // can't write a negative length
 		if (a0 < 0 || a0 > 15) return -1;	// check for a valid file descriptor
 		OpenFile file = fileDescriptorTable[a0];
@@ -523,9 +555,11 @@ public class UserProcess {
 		byte[] page = new byte[pageSize];
 		while (written < a2) {
 			size = Math.min(pageSize, a2 - written);
-			transferred = readVirtualMemory(a1, page);
+			transferred = readVirtualMemory(a1, page, 0, size);
+			Lib.debug(dbgProcess, "write transferred: " + transferred);
+			Lib.debug(dbgProcess, "page: " + page);
 			if (transferred < size) return -1;
-			pageWritten = file.write(page, 0, size);
+			pageWritten = file.write(page, 0, transferred);
 			if (pageWritten == -1 || pageWritten < size) return -1;
 			written += pageWritten;
 			a1 += pageWritten;
