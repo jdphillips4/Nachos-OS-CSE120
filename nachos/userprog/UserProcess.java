@@ -622,6 +622,16 @@ public class UserProcess {
 		return 0;
 	}
 
+	//join(int pid, int *status)
+	private int handleJoin(int pid, int *status) {
+		//find child process pid
+		if(!childProcess.contains(pid)) {
+			return -1;
+		}
+		//UserProcess child = 
+	}
+
+
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
 			syscallRead = 6, syscallWrite = 7, syscallClose = 8,
@@ -708,6 +718,8 @@ public class UserProcess {
 			return handleUnlink(a0);
 		case syscallExec:
 			return handleExec( a0, a1, a2);
+		case syscallJoin:
+			return handleJoin(a0, a1)
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
