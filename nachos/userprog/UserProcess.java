@@ -3,14 +3,14 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
-
 import java.io.EOFException;
 import java.util.List;
+
+
 import java.util.ArrayList;
 
 //import javax.annotation.processing.Processor;
 
-//import javax.annotation.processing.Processor;
 
 
 /**
@@ -587,21 +587,31 @@ public class UserProcess {
 	 * Handle the close() system call
 	 */
 	private int handleClose(int a0) {
-		Lib.debug(dbgProcess, "UserProcess.handleClose");
-		if (fileDescriptorTable[a0] == null) return -1; // can't close non-existing descriptor
+		Lib.debug(dbgProcess, "User Process.handleClose");
+		if (a0 < 0 || a0 >= fileDescriptorTable.length || fileDescriptorTable[a0] == null) {
+			return -1; // Invalid file descriptor
+		}
 		fileDescriptorTable[a0].close();
-		fileDescriptorTable[a0] = null;
+		fileDescriptorTable[a0] = null; // Clear the file descriptor entry
 		return 0;
 	}
 
 	//delete a file
 	private int handleUnlink(int a0){
-		Lib.debug(dbgProcess, "User Process.handleUnlink");
+		Lib.debug(dbgProcess, "User  Process.handleUnlink");
 		String filename = readVirtualMemoryString(a0, 256); 
-		if( filename == null ) return -1;
-		boolean deleted = ThreadedKernel.fileSystem.remove(filename); //remove in filesystem.java
-		if( deleted == false ) return -1; //file not deleted.
-		return 0;
+		if (filename == null) return -1;
+
+		// Check for open files before unlink
+		for (OpenFile file : fileDescriptorTable) {
+			if (file != null && file.getName().equals(filename)) {
+				return -1; // Cannot delete since it's still open
+			}
+    }
+
+    boolean deleted = ThreadedKernel.fileSystem.remove(filename);
+    if (deleted==false) return -1; // File not deleted.
+    return 0;
 	}
 
 	/**
