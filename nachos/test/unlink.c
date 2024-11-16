@@ -1,3 +1,4 @@
+//unlink.c
 #include "syscall.h"
 
 int main (int argc, char *argv[]) {
@@ -27,6 +28,9 @@ int main (int argc, char *argv[]) {
     // Close the file to allow unlinking
     write(1,"fd 2 (file descriptor for opening file1 = "+ fd2, 54);
     close(fd2);
+    if (close(fd2) == -1) {
+    write(1, "Failed to close fd2\n", 21);
+}
     if (unlink(filename1) == 0) {
         write(1, "Successfully unlinked testfile1.txt\n", 37);
     } else {
