@@ -5,6 +5,10 @@ import nachos.userprog.*;
 import nachos.vm.*;
 
 import java.io.EOFException;
+import java.util.List;
+import java.util.ArrayList;
+
+//import javax.annotation.processing.Processor;
 
 //import javax.annotation.processing.Processor;
 
@@ -31,6 +35,7 @@ public class UserProcess {
 		fileDescriptorTable = new OpenFile[MAX_FILES];
 		fileDescriptorTable[0] = UserKernel.console.openForReading();
 		fileDescriptorTable[1] = UserKernel.console.openForWriting();
+		children = new ArrayList<UserProcess>();//do i need the type UserProcess
 	// 	for (int i = 0; i < numPhysPages; i++)
 	// 		pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 	 }
@@ -71,6 +76,7 @@ public class UserProcess {
 		if (!load(name, args))
 			return false;
 
+		currentProcess = this; //set current process
 		thread = new UThread(this);
 		thread.setName(name).fork();
 
@@ -429,8 +435,10 @@ public class UserProcess {
 
 	/**
 	 * Handle the halt() system call.
+	 *  only be invoked by the "root" process
 	 */
 	private int handleHalt() {
+		if(currentProcess.getProcessID() != 0) return -1; 
 		Lib.debug(dbgProcess, "UserProcess.handleHalt");
 
 		Machine.halt();
@@ -444,6 +452,8 @@ public class UserProcess {
 	 */
 	private int handleExit(int status) {
 	    // Do not remove this call to the autoGrader...
+		setExitStatus(status);
+		currentProcess = null; //reset
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
@@ -453,7 +463,13 @@ public class UserProcess {
 		// with just one process
 		System.out.println ("UserProcess.handleExit (" + status + ")");
 		Kernel.kernel.terminate();
-
+		/*
+		 * thread should be terminated and the process should clean up any state associated with it
+		 *  (i.e., free up memory, close open files, etc.). 
+		 * Perform the same cleanup if a process exits abnormally 
+		 * (e.g., executes an illegal instruction).
+		 * e last exiting process should call Kernel.kernel.terminate() directly.)
+		 */
 		return 0;
 	}
 
@@ -589,7 +605,8 @@ public class UserProcess {
 	}
 
 	/**
-	 * 
+	 * exec system call both creates a new process 
+	 * and loads a new program into that process. 
 	 * @param a0
 	 * @param a1
 	 * @param a2
@@ -597,40 +614,101 @@ public class UserProcess {
      * join(). On error, returns -1.
 	 */
 	private int handleExec( int a0, int a1, int a2 ){
-	String executableName = readVirtualMemoryString(a0, 256);
-    if (executableName == null)  return -1; // Invalid executable name
-	//do we check if the string includes .coff ??
-    // Step 2: Read the argument count
-    int argc = a1;
-    if (argc < 0) return -1; // Invalid argument count
-    // Step 3: Read the arguments argv is an array of pointers to null-terminated strings
-    String[] argv = new String[argc];
-		//read virtual mem stuff
-
-    UserProcess childProcess = UserProcess.newUserProcess();
-    if (childProcess == null) return -1; // Failed to create new process
-
-    if (!childProcess.execute(executableName, argv))  return -1; // Failed to execute the process
-
-    return childProcess.getProcessID(); 
-	}
+		String executableName = readVirtualMemoryString(a0, 256);
+		if (executableName == null)  return -1; // Invalid executable name
+		//do we check if the string includes .coff ??
+		// Step 2: Read the argument count
+		int argc = a1;
+		if (argc < 0) return -1; // Invalid argument count
+		// Step 3: Read the arguments argv is an array of pointers to null-terminated strings
+		String[] argv = new String[argc];
+			//read virtual mem stuff
+		for (int i=0; i< argc; i++) {
+			byte[] ptr = new byte[4];
+			readVirtualMemory(a2 + i*4, ptr); //reads 4 byte value corresponding to ith argument
+			int vaddr = Lib.bytesToInt(ptr,0);
+			argv[i] = readVirtualMemoryString(vaddr, 256);
+	
+			if (argv[i]==null) return -1;
+		}
+	
+		//maybe save child and parent to be used for join
+	
+	
+		UserProcess childProcess = UserProcess.newUserProcess();
+		if (childProcess == null) return -1; // Failed to create new process
+	
+		if (!childProcess.execute(executableName, argv))  return -1; // Failed to execute the process
+		children.add(childProcess);
+		return childProcess.getProcessID(); 
+		}
 	/**
 	 * need to implement this for handleExec
 	 * @return
 	 */
 	private int getProcessID(){
-		return 0;
+		pid++;
+		return pid;
 	}
-
-	//join(int pid, int *status)
-	private int handleJoin(int pid, int *status) {
-		//find child process pid
-		if(!childProcess.contains(pid)) {
-			return -1;
+	/*
+	 * isAlive process?
+	 */
+	public boolean isAlive() {
+		return alive;
+	}
+	public void setExitStatus(int status) {
+		this.exitStatus = status;
+		this.alive = false; // Mark as unalive
+	}
+	
+	public int getExitStatus() {
+		return exitStatus;
+	}
+	/**
+	 * 
+	 * transfer data between kernel memory and the memory of the user process.
+	 * @param a0 process id from handleExec
+	 * @param a1
+	 * @return
+	 */
+	private int handleJoin( int a0, int a1){//int  join(int pid, int *status)
+		if( a0 < 0 ) return -1;//process ID positive integer, assigned to each process when created
+		String vms = readVirtualMemoryString(a0, a1);
+		if( vms == null ) return -1;
+		UserProcess child = null;
+		for( UserProcess u : children ){
+			if ( u.getProcessID() == a0 ) { //process is done if u can get its id.
+				child = u;
+				break;
+			}
 		}
-		//UserProcess child = 
-	}
+		while (child.isAlive()) {
+			// Optionally, yield the processor or sleep
+			// This can be done using a condition variable or semaphore
+		}
+		/**1. Suspend execution of the current process until the child process 
+		 * specified
+         * by the processID argument has exited. 
+		 * 2. If the child has already exited by the
+         * time of the call, returns immediately
+		 * 3.When the current process resumes, it
+ 		* disowns the child process, so that join() cannot be used on that process
+ 		* again.*/
 
+		/*
+		 * * If the child exited normally, returns 1. If the child exited as a result of
+		* an unhandled exception, returns 0. If processID does not refer to a child
+		* process of the current process, returns -1.
+		 */
+		if( child == null ) return -1;
+		 // Get the exit status if a1 is a valid pointer
+		 if (a1 != 0) {
+			byte[] statusBytes = Lib.bytesFromInt(child.getExitStatus());
+			writeVirtualMemory(a1, statusBytes);
+		}
+		children.remove(child);
+		return 1; //  child has exited
+	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -719,7 +797,7 @@ public class UserProcess {
 		case syscallExec:
 			return handleExec( a0, a1, a2);
 		case syscallJoin:
-			return handleJoin(a0, a1)
+			return handleJoin( a0, a1);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -780,4 +858,10 @@ public class UserProcess {
 
 	private static final int MAX_FILES = 16; // Maximum number of open files
 	private OpenFile[] fileDescriptorTable;
+	private static int pid = -1;
+	protected List<UserProcess> children;
+	protected boolean alive = true; 
+    protected int exitStatus;
+	protected UserProcess currentProcess;
+
 }
