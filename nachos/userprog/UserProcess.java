@@ -453,7 +453,7 @@ public class UserProcess {
 	private void handleExit(int status) {
 	    // Do not remove this call to the autoGrader...
 		System.out.println ("UserProcess.handleExit (" + status + ")");
-		if (currentProcess != null) Machine.autoGrader().finishingCurrentProcess(status);
+		Machine.autoGrader().finishingCurrentProcess(status);
 		int pid = currentProcess != null ? currentProcess.getProcessID() : -1;
 		Lib.debug(dbgProcess, "exit PID: " + pid);
 
@@ -469,7 +469,7 @@ public class UserProcess {
 		unloadSections();
 		Lib.debug(dbgProcess, "check current process location: " + currentProcess);
 		Lib.debug(dbgProcess, "setting Status of PID " + pid + " to " + status);
-		if (currentProcess != null) setExitStatus(status);
+		setExitStatus(status);
 		currentProcess = null;
 		// last exiting process should invoke halt
 		if(pid == 0) {
@@ -478,7 +478,8 @@ public class UserProcess {
 		}
 		// if parent is waiting on this, allow it to run again
 		if (parent != null) {
-			KThread.currentThread().yield();
+			Machine.interrupt().disable();
+			KThread.currentThread().finish();;;
 		}
 	}
 
@@ -673,8 +674,7 @@ public class UserProcess {
 		Lib.debug(dbgProcess, "childProcess: " + childProcess.pid);
 		Lib.debug(dbgProcess, "currentProcess: " + currentProcess.pid);
 		childProcess.parent = currentProcess;
-		Lib.debug(dbgProcess, "handleExec child pid: " + childProcess.getProcessID());
-		return childProcess.getProcessID(); 
+		return childProcess.pid; 
 	}
 	/**
 	 * need to implement this for handleExec
