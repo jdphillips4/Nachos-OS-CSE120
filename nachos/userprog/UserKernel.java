@@ -146,4 +146,6 @@ public class UserKernel extends ThreadedKernel {
 	// linked list of free pages
 	public static LinkedList<Integer> freePages;
 	public static Lock pageLock;
+
+	public static int nextID = 0; //stored in kernel, need to increment everytime
 }

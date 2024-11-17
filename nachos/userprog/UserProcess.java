@@ -39,6 +39,8 @@ public class UserProcess {
 		children = new ArrayList<UserProcess>();//do i need the type UserProcess
 	// 	for (int i = 0; i < numPhysPages; i++)
 	// 		pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		pid = UserKernel.nextID;
+		UserKernel.nextID++;
 	 }
 
 	/**
@@ -588,7 +590,7 @@ public class UserProcess {
 	 * Handle the close() system call
 	 */
 	private int handleClose(int a0) {
-		Lib.debug(dbgProcess, "User Process.handleClose");
+		Lib.debug(dbgProcess, "UserProcess.handleClose");
 		if (a0 < 0 || a0 >= fileDescriptorTable.length || fileDescriptorTable[a0] == null) {
 			return -1; // Invalid file descriptor
 		}
@@ -599,20 +601,20 @@ public class UserProcess {
 
 	//delete a file
 	private int handleUnlink(int a0){
-		Lib.debug(dbgProcess, "User  Process.handleUnlink");
+		Lib.debug(dbgProcess, "UserProcess.handleUnlink");
 		String filename = readVirtualMemoryString(a0, 256); 
-		if (filename == null) return -1;
+		if (filename == null||filename.length()>256) return -1;
 
 		// Check for open files before unlink
 		for (OpenFile file : fileDescriptorTable) {
 			if (file != null && file.getName().equals(filename)) {
 				return -1; // Cannot delete since it's still open
 			}
-    }
+    	}
 
-    boolean deleted = ThreadedKernel.fileSystem.remove(filename);
-    if (deleted==false) return -1; // File not deleted.
-    return 0;
+    	boolean deleted = ThreadedKernel.fileSystem.remove(filename);
+    	if (deleted==false) return -1; // File not deleted.
+    	return 0;
 	}
 
 	/**
@@ -658,7 +660,6 @@ public class UserProcess {
 	 * @return
 	 */
 	private int getProcessID(){
-		pid++;
 		return pid;
 	}
 	/*
@@ -869,7 +870,7 @@ public class UserProcess {
 
 	private static final int MAX_FILES = 16; // Maximum number of open files
 	private OpenFile[] fileDescriptorTable;
-	private static int pid = -1;
+	private static int pid;
 	protected List<UserProcess> children;
 	protected boolean alive = true; 
     protected int exitStatus;
