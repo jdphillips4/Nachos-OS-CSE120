@@ -31,14 +31,11 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		// int numPhysPages = Machine.processor().getNumPhysPages();
-		// pageTable = new TranslationEntry[numPhysPages];
 		fileDescriptorTable = new OpenFile[MAX_FILES];
 		fileDescriptorTable[0] = UserKernel.console.openForReading();
 		fileDescriptorTable[1] = UserKernel.console.openForWriting();
 		children = new ArrayList<UserProcess>();//do i need the type UserProcess
-	// 	for (int i = 0; i < numPhysPages; i++)
-	// 		pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		parent = null;
 		pid = UserKernel.nextID;
 		UserKernel.nextID++;
 	 }
@@ -171,8 +168,8 @@ public class UserProcess {
 			if (!entry.valid) return 0;
 			int paddr = ppn * pageSize + voffset;
 			int amount = Math.min(length - read, pageSize - voffset);
-			Lib.debug(dbgProcess, "vaddr: " + vaddr);
-			Lib.debug(dbgProcess, "paddr: " + paddr);
+			//Lib.debug(dbgProcess, "vaddr: " + vaddr);
+			//Lib.debug(dbgProcess, "paddr: " + paddr);
 			try {
 				System.arraycopy(memory, paddr, data, offset + read, amount);
 			} catch (IndexOutOfBoundsException exception) {
@@ -230,8 +227,8 @@ public class UserProcess {
 			int ppn = entry.ppn;
 			int paddr = ppn * pageSize + voffset;
 			int amount = Math.min(length - written, pageSize - voffset);
-			Lib.debug(dbgProcess, "write vaddr: " + vaddr);
-			Lib.debug(dbgProcess, "write paddr: " + paddr);
+			//Lib.debug(dbgProcess, "write vaddr: " + vaddr);
+			//Lib.debug(dbgProcess, "write paddr: " + paddr);
 			try {
 				System.arraycopy(data, offset + written, memory, paddr, amount);
 			} catch (IndexOutOfBoundsException exception) {
@@ -453,27 +450,36 @@ public class UserProcess {
 	/**
 	 * Handle the exit() system call.
 	 */
-	private int handleExit(int status) {
+	private void handleExit(int status) {
 	    // Do not remove this call to the autoGrader...
-		setExitStatus(status);
-		currentProcess = null; //reset
-		Machine.autoGrader().finishingCurrentProcess(status);
-		// ...and leave it as the top of handleExit so that we
-		// can grade your implementation.
-
-		// for now, simply print out the value of the exit
-		// status for debugging, and unconditionally terminate
-		// with just one process
 		System.out.println ("UserProcess.handleExit (" + status + ")");
-		Kernel.kernel.terminate();
-		/*
-		 * thread should be terminated and the process should clean up any state associated with it
-		 *  (i.e., free up memory, close open files, etc.). 
-		 * Perform the same cleanup if a process exits abnormally 
-		 * (e.g., executes an illegal instruction).
-		 * e last exiting process should call Kernel.kernel.terminate() directly.)
-		 */
-		return 0;
+		Machine.autoGrader().finishingCurrentProcess(status);
+		int pid = currentProcess != null ? currentProcess.getProcessID() : -1;
+		Lib.debug(dbgProcess, "exit PID: " + pid);
+
+		// close all file descriptors
+		for (int i=0; i<16; i++) {
+			handleClose(i);
+		}
+		// any children no longer have parents
+		for(UserProcess child: children) {
+			child.parent = null;
+		}
+		// cleanup memory
+		unloadSections();
+		Lib.debug(dbgProcess, "check current process location: " + currentProcess);
+		Lib.debug(dbgProcess, "setting Status of PID " + pid + " to " + status);
+		if (currentProcess != null) setExitStatus(status);
+		currentProcess = null;
+		// last exiting process should invoke halt
+		if(pid == 0) {
+			Lib.debug(dbgProcess, "Calling terminate!");
+			Kernel.kernel.terminate();
+		}
+		// if parent is waiting on this, allow it to run again
+		if (parent != null) {
+			KThread.currentThread().yield();
+		}
 	}
 
 	/**
@@ -533,21 +539,21 @@ public class UserProcess {
 	 * Handle the read() system call
 	 */
 	private int handleRead(int a0, int a1, int a2) {
-		Lib.debug(dbgProcess, "args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		//Lib.debug(dbgProcess, "args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
 		if (a0 < 0 || a0 > 15) return -1;	// check for a valid file descriptor
 		OpenFile file = fileDescriptorTable[a0];
 		if (file == null) return -1;		// check for a valid file descriptor
 		int read = 0;
 		byte[] page = new byte[pageSize];
 		while (read < a2) {
-			Lib.debug(dbgProcess, "a1 ptr: " + a1);
+			//Lib.debug(dbgProcess, "a1 ptr: " + a1);
 			int size = Math.min(pageSize, a2 - read);
 			int fileRead = file.read(page, 0, size);
-			Lib.debug(dbgProcess, "fileRead: " + fileRead);
+			//Lib.debug(dbgProcess, "fileRead: " + fileRead);
 			if (fileRead == -1) return -1; // if error in reading file
 			int transferred = writeVirtualMemory(a1, page, 0, fileRead);
-			Lib.debug(dbgProcess, "transferred: " + transferred);
-			Lib.debug(dbgProcess, "data: " + new String(page, 0, fileRead));
+			//Lib.debug(dbgProcess, "transferred: " + transferred);
+			//Lib.debug(dbgProcess, "data: " + new String(page, 0, fileRead));
 			a1 += transferred;		// move our pointer by however much we just added
 			read += transferred;
 			// stop when nothing more can be read
@@ -560,7 +566,7 @@ public class UserProcess {
 	 * Handle the write() system call
 	 */
 	private int handleWrite(int a0, int a1, int a2) {
-		Lib.debug(dbgProcess, "HANDLEWRITE args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
+		//Lib.debug(dbgProcess, "HANDLEWRITE args, a0: " + a0 + " ,a1: " + a1 + " ,a2: " + a2);
 		if(a2 < 0) return -1; // can't write a negative length
 		if (a0 < 0 || a0 > 15) return -1;	// check for a valid file descriptor
 		OpenFile file = fileDescriptorTable[a0];
@@ -575,8 +581,8 @@ public class UserProcess {
 		while (written < a2) {
 			size = Math.min(pageSize, a2 - written);
 			transferred = readVirtualMemory(a1, page, 0, size);
-			Lib.debug(dbgProcess, "write transferred: " + transferred);
-			Lib.debug(dbgProcess, "page: " + page);
+			//Lib.debug(dbgProcess, "write transferred: " + transferred);
+			//Lib.debug(dbgProcess, "page: " + page);
 			if (transferred < size) return -1;
 			pageWritten = file.write(page, 0, transferred);
 			if (pageWritten == -1 || pageWritten < size) return -1;
@@ -590,7 +596,7 @@ public class UserProcess {
 	 * Handle the close() system call
 	 */
 	private int handleClose(int a0) {
-		Lib.debug(dbgProcess, "UserProcess.handleClose");
+		//Lib.debug(dbgProcess, "UserProcess.handleClose");
 		if (a0 < 0 || a0 >= fileDescriptorTable.length || fileDescriptorTable[a0] == null) {
 			return -1; // Invalid file descriptor
 		}
@@ -628,33 +634,48 @@ public class UserProcess {
 	 */
 	private int handleExec( int a0, int a1, int a2 ){
 		String executableName = readVirtualMemoryString(a0, 256);
-		if (executableName == null)  return -1; // Invalid executable name
+		if (executableName == null){
+			Lib.debug(dbgProcess, "handleExec no executable name!");
+			return -1;
+		}; // Invalid executable name
 		//do we check if the string includes .coff ??
 		// Step 2: Read the argument count
 		int argc = a1;
-		if (argc < 0) return -1; // Invalid argument count
+		if (argc < 0) {
+			Lib.debug(dbgProcess, "handleExec bad arg count");
+			return -1; // Invalid argument count
+		}
 		// Step 3: Read the arguments argv is an array of pointers to null-terminated strings
 		String[] argv = new String[argc];
-			//read virtual mem stuff
+		//read virtual mem stuff
 		for (int i=0; i< argc; i++) {
 			byte[] ptr = new byte[4];
 			readVirtualMemory(a2 + i*4, ptr); //reads 4 byte value corresponding to ith argument
 			int vaddr = Lib.bytesToInt(ptr,0);
 			argv[i] = readVirtualMemoryString(vaddr, 256);
-	
-			if (argv[i]==null) return -1;
+			if (argv[i]==null) {
+				Lib.debug(dbgProcess, "handleExec unable to read arg string");
+				return -1;
+			}
 		}
 	
 		//maybe save child and parent to be used for join
-	
-	
 		UserProcess childProcess = UserProcess.newUserProcess();
-		if (childProcess == null) return -1; // Failed to create new process
-	
-		if (!childProcess.execute(executableName, argv))  return -1; // Failed to execute the process
-		children.add(childProcess);
-		return childProcess.getProcessID(); 
+		if (childProcess == null) {
+			Lib.debug(dbgProcess, "handleExec failed to make childProcess");
+			return -1; // Failed to create new process
 		}
+		if (!childProcess.execute(executableName, argv)){
+			Lib.debug(dbgProcess, "handleExec failed to run child process!");
+			return -1;
+		}; // Failed to execute the process
+		children.add(childProcess);
+		Lib.debug(dbgProcess, "childProcess: " + childProcess.pid);
+		Lib.debug(dbgProcess, "currentProcess: " + currentProcess.pid);
+		childProcess.parent = currentProcess;
+		Lib.debug(dbgProcess, "handleExec child pid: " + childProcess.getProcessID());
+		return childProcess.getProcessID(); 
+	}
 	/**
 	 * need to implement this for handleExec
 	 * @return
@@ -680,44 +701,32 @@ public class UserProcess {
 	 * 
 	 * transfer data between kernel memory and the memory of the user process.
 	 * @param a0 process id from handleExec
-	 * @param a1
+ 	 * @param a1
 	 * @return
 	 */
 	private int handleJoin( int a0, int a1){//int  join(int pid, int *status)
-		if( a0 < 0 ) return -1;//process ID positive integer, assigned to each process when created
-		String vms = readVirtualMemoryString(a0, a1);
-		if( vms == null ) return -1;
+		if( a0 <= 0 ) return -1;//process ID positive integer, assigned to each process when created
+		if( a1 < 0 || a1 > numPages * pageSize) return -1;
 		UserProcess child = null;
+		// only join to your children
 		for( UserProcess u : children ){
 			if ( u.getProcessID() == a0 ) { //process is done if u can get its id.
 				child = u;
 				break;
 			}
 		}
+		if(child == null) return -1;
+		Lib.debug(dbgProcess, "setting child of " + currentProcess.getProcessID() + " to " + child.getProcessID());
 		while (child.isAlive()) {
-			// Optionally, yield the processor or sleep
-			// This can be done using a condition variable or semaphore
+			KThread.currentThread().yield();
 		}
-		/**1. Suspend execution of the current process until the child process 
-		 * specified
-         * by the processID argument has exited. 
-		 * 2. If the child has already exited by the
-         * time of the call, returns immediately
-		 * 3.When the current process resumes, it
- 		* disowns the child process, so that join() cannot be used on that process
- 		* again.*/
-
-		/*
-		 * * If the child exited normally, returns 1. If the child exited as a result of
-		* an unhandled exception, returns 0. If processID does not refer to a child
-		* process of the current process, returns -1.
-		 */
-		if( child == null ) return -1;
 		 // Get the exit status if a1 is a valid pointer
-		 if (a1 != 0) {
-			byte[] statusBytes = Lib.bytesFromInt(child.getExitStatus());
-			writeVirtualMemory(a1, statusBytes);
-		}
+		Lib.debug(dbgProcess, "child Location: " + child);
+		int exitStatus = child.getExitStatus();
+		System.out.println("ChildExitStat: " + exitStatus);
+		if(exitStatus == -999) return 0;
+		byte[] statusBytes = Lib.bytesFromInt(exitStatus);
+		writeVirtualMemory(a1, statusBytes);
 		children.remove(child);
 		return 1; //  child has exited
 	}
@@ -793,7 +802,7 @@ public class UserProcess {
 		case syscallHalt:
 			return handleHalt();
 		case syscallExit:
-			return handleExit(a0);
+			handleExit(a0);
 		case syscallCreate:
 			return handleCreat(a0); //doesnt work since we didnt implement close yet
 		case syscallOpen:
@@ -827,9 +836,11 @@ public class UserProcess {
 	 */
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
+		Lib.debug(dbgProcess, "cause: " + cause);
 
 		switch (cause) {
 		case Processor.exceptionSyscall:
+			// TODO: HANDLE EXCEPTION
 			int result = handleSyscall(processor.readRegister(Processor.regV0),
 					processor.readRegister(Processor.regA0),
 					processor.readRegister(Processor.regA1),
@@ -842,7 +853,7 @@ public class UserProcess {
 		default:
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
-			Lib.assertNotReached("Unexpected exception");
+			handleExit(-999);
 		}
 	}
 	/** The program being run by this process. */
@@ -870,8 +881,9 @@ public class UserProcess {
 
 	private static final int MAX_FILES = 16; // Maximum number of open files
 	private OpenFile[] fileDescriptorTable;
-	private static int pid;
+	private int pid;
 	protected List<UserProcess> children;
+	protected UserProcess parent;
 	protected boolean alive = true; 
     protected int exitStatus;
 	protected UserProcess currentProcess;
