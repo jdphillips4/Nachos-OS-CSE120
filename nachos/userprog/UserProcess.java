@@ -694,10 +694,10 @@ public class UserProcess {
 				break;
 			}
 		}
-		while (child.isAlive()) {
-			// Optionally, yield the processor or sleep
-			// This can be done using a condition variable or semaphore
-		}
+		// while (child.isAlive()) {
+		// 	// Optionally, yield the processor or sleep
+		// 	// This can be done using a condition variable or semaphore
+		// }
 		/**1. Suspend execution of the current process until the child process 
 		 * specified
          * by the processID argument has exited. 
