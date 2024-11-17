@@ -720,8 +720,6 @@ public class UserProcess {
 		while (child.isAlive()) {
 			KThread.currentThread().yield();
 		}
-		 // Get the exit status if a1 is a valid pointer
-		Lib.debug(dbgProcess, "child Location: " + child);
 		int exitStatus = child.getExitStatus();
 		System.out.println("ChildExitStat: " + exitStatus);
 		if(exitStatus == -999) return 0;
