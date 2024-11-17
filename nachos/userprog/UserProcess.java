@@ -453,7 +453,7 @@ public class UserProcess {
 	private void handleExit(int status) {
 	    // Do not remove this call to the autoGrader...
 		System.out.println ("UserProcess.handleExit (" + status + ")");
-		Machine.autoGrader().finishingCurrentProcess(status);
+		if (currentProcess != null) Machine.autoGrader().finishingCurrentProcess(status);
 		int pid = currentProcess != null ? currentProcess.getProcessID() : -1;
 		Lib.debug(dbgProcess, "exit PID: " + pid);
 
