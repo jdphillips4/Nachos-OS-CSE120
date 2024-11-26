@@ -104,7 +104,7 @@ public class VMProcess extends UserProcess {
 
 		// //invalidate pge table entry of victim
 		// UserKernel.pageLock.release(); 
-		// return true;
+		 return true;
 	}
 
 	/**
@@ -127,7 +127,8 @@ public class VMProcess extends UserProcess {
 		Processor processor = Machine.processor();
 		switch (cause) {
 			case Processor.exceptionPageFault:
-				UserKernel.pageLock.acquire(); 
+				// System.out.println("in exception page fault");
+				//UserKernel.pageLock.acquire(); 
 				//load single pg that caused exception
 				int virtualAddr = processor.readRegister(Processor.regBadVAddr);//doesnt match to phys pg#
 				//convert to vpn
@@ -146,14 +147,18 @@ public class VMProcess extends UserProcess {
 					}
 				}
 				if( isCoff == false ){ //0fill that physical page
+					pageTable[vpn].valid = true;
 					byte[] memory = Machine.processor().getMemory();
 					byte[] data = new byte[pageSize];
 					int paddr = pageTable[vpn].ppn * pageSize;
 					System.arraycopy( memory, paddr, data, 0, pageSize );
 					//zero out pg size elements in that array
 				}
+				break;
 										
 		default:
+			// System.out.println("in default ");
+			// System.out.println("it is "+cause);
 			super.handleException(cause);
 			break;
 		}
