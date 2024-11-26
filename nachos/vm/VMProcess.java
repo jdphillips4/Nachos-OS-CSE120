@@ -47,8 +47,8 @@ public class VMProcess extends UserProcess {
 		}
 		//for loop thru page table not coff sections
 		for (int i = 0; i < numPages; i++){
-			int freePage = UserKernel.freePages.pop();
-	 		pageTable[i] = new TranslationEntry(i, freePage, false, false, false, false);
+			//int freePage = UserKernel.freePages.pop(); //-1
+	 		pageTable[i] = new TranslationEntry(i, -1, false, false, false, false);
 			//preallocate pages and set valid bit to false
 			//go to handle exception
 		}
@@ -133,32 +133,39 @@ public class VMProcess extends UserProcess {
 				int virtualAddr = processor.readRegister(Processor.regBadVAddr);//doesnt match to phys pg#
 				//convert to vpn
 				int vpn = virtualAddr / pageSize;
-				//tell difference btwn coff page and stack argument pg. 
+				int freePage = UserKernel.freePages.pop();
+							pageTable[vpn].ppn = freePage;
+				if( freePages.size() == 0 ){ //NO FREE PAGES. follow psuedocode. p2 still 1 process no lock yet. goal:s swap 1 process
+					//pick pg to evict
+					//clock alg lecture vid(3 of which physical pg to evict). need 2nd data struct track pages saved on disk
+					//filesystemfunctions
+				}
 				//loop thru all coff section, see if vpn is in that coff section. if so load from that coff section.
 				for (int s = 0; s < coff.getNumSections(); s++) {
 					CoffSection section = coff.getSection(s);
 					for (int i = 0; i < section.getLength(); i++) {
 
 						if( vpn == section.getFirstVPN() + i ){//coff
+							
 							section.loadPage( i, pageTable[vpn].ppn );
 							pageTable[vpn].valid = true;
 							isCoff = true;
 						}
 					}
 				}
-				if( isCoff == false ){ //0fill that physical page
+				if( isCoff == false ){ //it's a stack page, 0 fill that physical page
 					pageTable[vpn].valid = true;
+					//is something in swap file. if so load page from the disk
 					byte[] memory = Machine.processor().getMemory();
 					byte[] data = new byte[pageSize];
 					int paddr = pageTable[vpn].ppn * pageSize;
 					System.arraycopy( memory, paddr, data, 0, pageSize );
 					//zero out pg size elements in that array
 				}
-				break;
+				break; 
 										
 		default:
 			// System.out.println("in default ");
-			// System.out.println("it is "+cause);
 			super.handleException(cause);
 			break;
 		}
@@ -171,5 +178,6 @@ public class VMProcess extends UserProcess {
 	private static final char dbgVM = 'v';
 
 	//changes here
-	// protected TranslationEntry[] invertedPageTable;
-}
+	// protected TranslationEntry[] invertedPageTable; 
+	//which process the evicted pg base on ppn. belonged to invalidate (set valid=false og translation entry) that pg table entry?
+} //invalidate the evicted pg (already in the table)
