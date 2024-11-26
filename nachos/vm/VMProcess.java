@@ -54,57 +54,57 @@ public class VMProcess extends UserProcess {
 		}
 		
 
-		//if( demanded page found ) return super.loadSections();
-		//starting case. check no pages in memory. page fault to laod 1st page into memory
-		//if(freepagelist not empty) return super.loadSections()
-		UserKernel.pageLock.acquire(); 
-		// load sections.keep same?
-		for (int s = 0; s < coff.getNumSections(); s++) {
-			CoffSection section = coff.getSection(s);
-			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
-					+ " section (" + section.getLength() + " pages)");
-			boolean isReadOnly = section.isReadOnly();
+		// //if( demanded page found ) return super.loadSections();
+		// //starting case. check no pages in memory. page fault to laod 1st page into memory
+		// //if(freepagelist not empty) return super.loadSections()
+		// UserKernel.pageLock.acquire(); 
+		// // load sections.keep same?
+		// for (int s = 0; s < coff.getNumSections(); s++) {
+		// 	CoffSection section = coff.getSection(s);
+		// 	Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+		// 			+ " section (" + section.getLength() + " pages)");
+		// 	boolean isReadOnly = section.isReadOnly();
 
-			for (int i = 0; i < section.getLength(); i++) {
-				int vpn = section.getFirstVPN() + i;
-				int availPage = UserKernel.freePages.pollLast();
-				pageTable[vpn] = new TranslationEntry(vpn, availPage , false, isReadOnly, false, false);//
-				section.loadPage( i, availPage ); //loads into physical memory
-			}
-		}
-		// allocate stack and argument pages. 0 filled for part 1. ppn=-1 part 2?
-		for (int i = numPages - 1; i >= numPages - 9; i--) {
-			//load demanded page into available free page frame
-			int freePage = UserKernel.freePages.pop();
-			pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
-		}
+		// 	for (int i = 0; i < section.getLength(); i++) {
+		// 		int vpn = section.getFirstVPN() + i;
+		// 		int availPage = UserKernel.freePages.pollLast();
+		// 		pageTable[vpn] = new TranslationEntry(vpn, availPage , false, isReadOnly, false, false);//
+		// 		section.loadPage( i, availPage ); //loads into physical memory
+		// 	}
+		// }
+		// // allocate stack and argument pages. 0 filled for part 1. ppn=-1 part 2?
+		// for (int i = numPages - 1; i >= numPages - 9; i--) {
+		// 	//load demanded page into available free page frame
+		// 	int freePage = UserKernel.freePages.pop();
+		// 	pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
+		// }
 
-		//ELSE no free page frame, evict a victim page 
-		//page replacement clockwise algorithm (here or handleException?)
-			//use for loop
-			//if(used==true) used=false //2nd chance to pg in case it being used
-			//else evict this victim page, store location next to evicted pg to start next iteration here
-		//if( victimPage is dirty ) PART 2 swap out; WRITE to swap file. 
-			//unset validbit? entry vpn ppn useless. use ppn to store swap pg number in swap file
-			//aka vpn to spn mapping in pgtable
-			//notify owner process (current process requesting page) when dirty pg evicted
-			//update pg table entry of op to mark victim page invalid. usedbit=false
-			//access page table of op by ipt? do we make ipt in kernel or process?
-		File.write( 2*pageSize, memory, paddr, pageSize); //add it to swapFileList
-			//PART 3 optimized to only when page u wanna evict is dirty
-		//else dirty=false, orig pg in coff already so super.loadSections()?
-		// SWAP IN IF PG TO BE ACCESSED ALREADY RESIDES IN SWAP FILE (SWAPPED OUT EARLIER).
-		File.read( 2*pageSize, memory, paddr, pageSize);
-		//swap using StubFileSystem.java calls
-		ThreadedKernel.fileSystem.open();
-		//read/write
-		//close
-		ThreadedKernel.fileSystem.remove();
-		//close/remove swap file before terminate kernel. call vmkernel or userkernel
+		// //ELSE no free page frame, evict a victim page 
+		// //page replacement clockwise algorithm (here or handleException?)
+		// 	//use for loop
+		// 	//if(used==true) used=false //2nd chance to pg in case it being used
+		// 	//else evict this victim page, store location next to evicted pg to start next iteration here
+		// //if( victimPage is dirty ) PART 2 swap out; WRITE to swap file. 
+		// 	//unset validbit? entry vpn ppn useless. use ppn to store swap pg number in swap file
+		// 	//aka vpn to spn mapping in pgtable
+		// 	//notify owner process (current process requesting page) when dirty pg evicted
+		// 	//update pg table entry of op to mark victim page invalid. usedbit=false
+		// 	//access page table of op by ipt? do we make ipt in kernel or process?
+		// File.write( 2*pageSize, memory, paddr, pageSize); //add it to swapFileList
+		// 	//PART 3 optimized to only when page u wanna evict is dirty
+		// //else dirty=false, orig pg in coff already so super.loadSections()?
+		// // SWAP IN IF PG TO BE ACCESSED ALREADY RESIDES IN SWAP FILE (SWAPPED OUT EARLIER).
+		// File.read( 2*pageSize, memory, paddr, pageSize);
+		// //swap using StubFileSystem.java calls
+		// ThreadedKernel.fileSystem.open();
+		// //read/write
+		// //close
+		// ThreadedKernel.fileSystem.remove();
+		// //close/remove swap file before terminate kernel. call vmkernel or userkernel
 
-		//invalidate pge table entry of victim
-		UserKernel.pageLock.release(); 
-		return true;
+		// //invalidate pge table entry of victim
+		// UserKernel.pageLock.release(); 
+		// return true;
 	}
 
 	/**
@@ -146,7 +146,10 @@ public class VMProcess extends UserProcess {
 					}
 				}
 				if( isCoff == false ){ //0fill that physical page
-					pageTable[ppn].ze
+					byte[] memory = Machine.processor().getMemory();
+					byte[] data = new byte[pageSize];
+					int paddr = pageTable[vpn].ppn * pageSize;
+					System.arraycopy( memory, paddr, data, 0, pageSize );
 					//zero out pg size elements in that array
 				}
 										
