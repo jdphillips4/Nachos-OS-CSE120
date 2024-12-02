@@ -83,9 +83,15 @@ public class VMProcess extends UserProcess {
 				int freePage = UserKernel.freePages.pop();
 							pageTable[vpn].ppn = freePage;
 				if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode. p2 still 1 process no lock yet. goal:s swap 1 process
-					//pick pg to evict
-					for( int i = 0; i < physicalpgframes??? - 1; i++ ){//loop thru pages in circular order
-
+					//pick pg to evict: 
+					for( int i = 0; i < freePages.size() - 1; i++ ){//is the loop clock algo
+						//if dirty==true
+						if(freePages[i].dirty == true ){
+							//write to swap file
+							freePages[i] = swapFile;
+							swapFileList.add(swapFile);
+						}
+						//else proceed w replacement since original page already in coff
 					}
 					//clock alg lecture vid(3 of which physical pg to evict). need 2nd data struct track pages saved on disk
 					//filesystemfunctions
