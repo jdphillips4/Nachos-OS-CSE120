@@ -52,58 +52,6 @@ public class VMProcess extends UserProcess {
 			//preallocate pages and set valid bit to false
 			//go to handle exception
 		}
-		
-
-		// //if( demanded page found ) return super.loadSections();
-		// //starting case. check no pages in memory. page fault to laod 1st page into memory
-		// //if(freepagelist not empty) return super.loadSections()
-		// UserKernel.pageLock.acquire(); 
-		// // load sections.keep same?
-		// for (int s = 0; s < coff.getNumSections(); s++) {
-		// 	CoffSection section = coff.getSection(s);
-		// 	Lib.debug(dbgProcess, "\tinitializing " + section.getName()
-		// 			+ " section (" + section.getLength() + " pages)");
-		// 	boolean isReadOnly = section.isReadOnly();
-
-		// 	for (int i = 0; i < section.getLength(); i++) {
-		// 		int vpn = section.getFirstVPN() + i;
-		// 		int availPage = UserKernel.freePages.pollLast();
-		// 		pageTable[vpn] = new TranslationEntry(vpn, availPage , false, isReadOnly, false, false);//
-		// 		section.loadPage( i, availPage ); //loads into physical memory
-		// 	}
-		// }
-		// // allocate stack and argument pages. 0 filled for part 1. ppn=-1 part 2?
-		// for (int i = numPages - 1; i >= numPages - 9; i--) {
-		// 	//load demanded page into available free page frame
-		// 	int freePage = UserKernel.freePages.pop();
-		// 	pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
-		// }
-
-		// //ELSE no free page frame, evict a victim page 
-		// //page replacement clockwise algorithm (here or handleException?)
-		// 	//use for loop
-		// 	//if(used==true) used=false //2nd chance to pg in case it being used
-		// 	//else evict this victim page, store location next to evicted pg to start next iteration here
-		// //if( victimPage is dirty ) PART 2 swap out; WRITE to swap file. 
-		// 	//unset validbit? entry vpn ppn useless. use ppn to store swap pg number in swap file
-		// 	//aka vpn to spn mapping in pgtable
-		// 	//notify owner process (current process requesting page) when dirty pg evicted
-		// 	//update pg table entry of op to mark victim page invalid. usedbit=false
-		// 	//access page table of op by ipt? do we make ipt in kernel or process?
-		// File.write( 2*pageSize, memory, paddr, pageSize); //add it to swapFileList
-		// 	//PART 3 optimized to only when page u wanna evict is dirty
-		// //else dirty=false, orig pg in coff already so super.loadSections()?
-		// // SWAP IN IF PG TO BE ACCESSED ALREADY RESIDES IN SWAP FILE (SWAPPED OUT EARLIER).
-		// File.read( 2*pageSize, memory, paddr, pageSize);
-		// //swap using StubFileSystem.java calls
-		// ThreadedKernel.fileSystem.open();
-		// //read/write
-		// //close
-		// ThreadedKernel.fileSystem.remove();
-		// //close/remove swap file before terminate kernel. call vmkernel or userkernel
-
-		// //invalidate pge table entry of victim
-		// UserKernel.pageLock.release(); 
 		 return true;
 	}
 
@@ -131,12 +79,14 @@ public class VMProcess extends UserProcess {
 				//UserKernel.pageLock.acquire(); 
 				//load single pg that caused exception
 				int virtualAddr = processor.readRegister(Processor.regBadVAddr);//doesnt match to phys pg#
-				//convert to vpn
 				int vpn = virtualAddr / pageSize;
 				int freePage = UserKernel.freePages.pop();
 							pageTable[vpn].ppn = freePage;
-				if( freePages.size() == 0 ){ //NO FREE PAGES. follow psuedocode. p2 still 1 process no lock yet. goal:s swap 1 process
+				if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode. p2 still 1 process no lock yet. goal:s swap 1 process
 					//pick pg to evict
+					for( int i = 0; i < physicalpgframes??? - 1; i++ ){//loop thru pages in circular order
+
+					}
 					//clock alg lecture vid(3 of which physical pg to evict). need 2nd data struct track pages saved on disk
 					//filesystemfunctions
 				}
