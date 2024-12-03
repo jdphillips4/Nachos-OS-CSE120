@@ -86,12 +86,16 @@ public class VMProcess extends UserProcess {
 					//get part 2 working: set dirty = true anytime u load a page. if below was part 3
 						if(physicalPages.get(hand).used == false){ //unused. EVICTION LOGIC
 							if(physicalPages.get(hand).dirty == true ){ //only acccess at hand
-								int spn = //write method to get free spn
-								physicalPages.get(hand) = swapFile.write(); //keep data of used page. swap out
-								physicalPages.get(hand).valid = false;
-								physicalPages.get(hand).ppn = physicalPages.get(hand).spn;
+								int spn = getSPN(); 
+								physicalPages.get(hand) = swapFile.write( i*pageSize, mem); //keep data of used page. swap out.
+								physicalPages.get(hand).valid = false; //page is BEING USED
+								physicalPages.get(hand).ppn = physicalPages.get(hand).getSPN(); //???
 								//swap page numbers. spn like ppn method data struct. reallocate spn to pages that return
 								//if old page gets freed up, add it to spnList
+								if(physical.get(i).valid == true){//page FREED UP. swap in
+									physicalPages.get(hand) = swapFile.read( i*pageSize,);
+									spnSize = 
+								}
 								//spn diff for each page. allocate 0,1,2,3. 2 is freed. data struct track availpages 2 free, the rest busy. when no availpages add more
 								//data struct to track free spn
 								//write page into swap file with that spn*pagesize. save spn so u can read from correct place in swapfile.
@@ -109,7 +113,7 @@ public class VMProcess extends UserProcess {
 						
 						hand++;
 						if(hand >= freePages.size()) hand = 0;
-						//else proceed w replacement since original page already in coff
+						//else proceed w replacement since original page already in coff  
 					}
 				}
 				int freePage = UserKernel.freePages.pop();
@@ -144,6 +148,17 @@ public class VMProcess extends UserProcess {
 			break;
 		}
 	}
+	/**
+	 * add new swap page number to the list.
+	 *  returns an available swap page number
+	 */
+	public int getSPN(){
+	if(spnList.size() == 0){
+		spnSize++;
+		spnList.add(spnSize);
+	}
+	return spnSize;
+}
 
 	private static final int pageSize = Processor.pageSize;
 
@@ -157,7 +172,7 @@ public class VMProcess extends UserProcess {
 
 	private static OpenFile swapFile;
 
-	private static int spnSize = 0; //increment each time u add new spn. method that does both
+	private static int spnSize = -1; //increment each time u add new spn. method that does both
 
 	private static LinkedList<Integer> spnList; //if spnList empty add new spn=spnsize
 
