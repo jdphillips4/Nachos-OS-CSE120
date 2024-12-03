@@ -80,22 +80,40 @@ public class VMProcess extends UserProcess {
 				//load single pg that caused exception
 				int virtualAddr = processor.readRegister(Processor.regBadVAddr);//doesnt match to phys pg#
 				int vpn = virtualAddr / pageSize;
-				int freePage = UserKernel.freePages.pop();
-							pageTable[vpn].ppn = freePage;
-				if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode. p2 still 1 process no lock yet. goal:s swap 1 process
+				if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode.
 					//pick pg to evict: 
-					for( int i = 0; i < freePages.size() - 1; i++ ){//is the loop clock algo
-						//if dirty==true
-						if(freePages[i].dirty == true ){
-							//write to swap file
-							freePages[i] = swapFile;
-							swapFileList.add(swapFile);
+					for( int i = 0; i < physicalPages.size() - 1; i++ ){//full loop clock algo. track translation entry
+					//get part 2 working: set dirty = true anytime u load a page. if below was part 3
+						if(physicalPages.get(hand).used == false){ //unused. EVICTION LOGIC
+							if(physicalPages.get(hand).dirty == true ){ //only acccess at hand
+								int spn = //write method to get free spn
+								physicalPages.get(hand) = swapFile.write(); //keep data of used page. swap out
+								physicalPages.get(hand).valid = false;
+								physicalPages.get(hand).ppn = physicalPages.get(hand).spn;
+								//swap page numbers. spn like ppn method data struct. reallocate spn to pages that return
+								//if old page gets freed up, add it to spnList
+								//spn diff for each page. allocate 0,1,2,3. 2 is freed. data struct track availpages 2 free, the rest busy. when no availpages add more
+								//data struct to track free spn
+								//write page into swap file with that spn*pagesize. save spn so u can read from correct place in swapfile.
+							}
+							else{ //part 2 assume this never runs
+								physicalPages.get(hand).ppn = -1; //page not in swap file
+								//ppn tracks if we swapped out earlier. if so swap in (read from swapfile)
+							}
+							freePages.add(hand);
+							break;//found a free page be done
 						}
+						else{
+							physicalPages.get(hand).used = false;//if used dont evict yet. 
+						}
+						
+						hand++;
+						if(hand >= freePages.size()) hand = 0;
 						//else proceed w replacement since original page already in coff
 					}
-					//clock alg lecture vid(3 of which physical pg to evict). need 2nd data struct track pages saved on disk
-					//filesystemfunctions
 				}
+				int freePage = UserKernel.freePages.pop();
+							pageTable[vpn].ppn = freePage;
 				//loop thru all coff section, see if vpn is in that coff section. if so load from that coff section.
 				for (int s = 0; s < coff.getNumSections(); s++) {
 					CoffSection section = coff.getSection(s);
@@ -132,6 +150,16 @@ public class VMProcess extends UserProcess {
 	private static final char dbgProcess = 'a';
 
 	private static final char dbgVM = 'v';
+
+	private static int hand = 0;
+
+	private static LinkedList<TranslationEntry> physicalPages;
+
+	private static OpenFile swapFile;
+
+	private static int spnSize = 0; //increment each time u add new spn. method that does both
+
+	private static LinkedList<Integer> spnList; //if spnList empty add new spn=spnsize
 
 	//changes here
 	// protected TranslationEntry[] invertedPageTable; 
