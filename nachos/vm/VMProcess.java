@@ -80,6 +80,7 @@ public class VMProcess extends UserProcess {
 				//System.out.println("Handling pageFault for vpn: " + vpn);
 				//printPageTable();
 				//printInvertedTable();
+				// if there's not enough space, swap a physical page to disk and use it
 				if (UserKernel.freePages.size() <= 0) {
 					// use NRU clock algorithm to find page to replace
 					TranslationEntry victimEntry = VMKernel.invertedTable[VMKernel.hand];
@@ -105,13 +106,12 @@ public class VMProcess extends UserProcess {
 					UserKernel.freePages.add(ppn);
 					VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
 				}
-				// if there is space on phys. memory, load into physical memory
+				// fill our faulted page with data
 				boolean isCoff = false;
-				// atomically allocate a free page
 				int freePage = UserKernel.freePages.pop();
 				pageTable[vpn].ppn = freePage;
 				VMKernel.invertedTable[freePage] = pageTable[vpn];
-				// if our page is stored in swap file, load it from there
+				// if our page is stored in swap file (already loaded before), load it from there
 				int swapPointer = pageTable[vpn].vpn;
 				if (swapPointer != -1) {
 					byte[] pageData = new byte[pageSize];
@@ -120,6 +120,7 @@ public class VMProcess extends UserProcess {
 					VMKernel.swapFreePages.add(swapPointer);
 					pageTable[vpn].vpn = -1;
 				}
+				// first time initializing this page
 				else {
 					//if our page matches a coffSection, load it to the coff
 					for (int s = 0; s < coff.getNumSections(); s++) {
@@ -133,7 +134,6 @@ public class VMProcess extends UserProcess {
 					}
 					//it's a stack page, 0 fill that physical page
 					if( !isCoff ){
-						//is something in swap file. if so load page from the disk
 						byte[] data = new byte[pageSize];
 						int paddr = pageTable[vpn].ppn * pageSize;
 						//zero out the page in physical memory
@@ -149,17 +149,6 @@ public class VMProcess extends UserProcess {
 			break;
 		}
 	}
-	/**
-	 * add new swap page number to the list.
-	 *  returns an available swap page number
-	 */
-	public int getSPN(){
-	if(spnList.size() == 0){
-		spnSize++;
-		spnList.add(spnSize);
-	}
-	return spnSize;
-}
 
 	public void printPageTable(){
 		System.out.println("Page Table:");
@@ -200,10 +189,6 @@ public class VMProcess extends UserProcess {
 	private static final char dbgProcess = 'a';
 
 	private static final char dbgVM = 'v';
-
-	private static int spnSize = -1; //increment each time u add new spn. method that does both
-
-	private static LinkedList<Integer> spnList; //if spnList empty add new spn=spnsize
 }
 
 // else evict a memory page using clk and then put our page there
@@ -243,3 +228,11 @@ public class VMProcess extends UserProcess {
 						//else proceed w replacement since original page already in coff  
 					}
 				}*/
+
+	/* public int getSPN(){
+		if(spnList.size() == 0){
+			spnSize++;
+			spnList.add(spnSize);
+		}
+		return spnSize;
+	} */
