@@ -4,6 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import java.util.LinkedList;
 
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
@@ -40,17 +41,15 @@ public class VMProcess extends UserProcess {
 	 */
 	protected boolean loadSections() {
 		pageTable = new TranslationEntry[numPages]; 
-		if( numPages > UserKernel.freePages.size() ){
-			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory"); 
-			return false;
-		}
+		// if( numPages > UserKernel.freePages.size() ){
+		// 	coff.close();
+		// 	Lib.debug(dbgProcess, "\tinsufficient physical memory"); 
+		// 	return false;
+		// }
 		//for loop thru page table not coff sections
 		for (int i = 0; i < numPages; i++){
-			//int freePage = UserKernel.freePages.pop(); //-1
-	 		pageTable[i] = new TranslationEntry(i, -1, false, false, false, false);
-			//preallocate pages and set valid bit to false
-			//go to handle exception
+			// entry.vpn now stores swap page number (suggested by tips)
+	 		pageTable[i] = new TranslationEntry(-1, -1, false, false, false, false);
 		}
 		 return true;
 	}
@@ -71,16 +70,144 @@ public class VMProcess extends UserProcess {
 	 * @param cause the user exception that occurred.
 	 */
 	public void handleException(int cause) {
-		boolean isCoff = false;
 		Processor processor = Machine.processor();
 		switch (cause) {
 			case Processor.exceptionPageFault:
-				// System.out.println("in exception page fault");
-				//UserKernel.pageLock.acquire(); 
-				//load single pg that caused exception
-				int virtualAddr = processor.readRegister(Processor.regBadVAddr);//doesnt match to phys pg#
-				int vpn = virtualAddr / pageSize;
-				if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode.
+				// where we are virtually
+				byte[] memory = Machine.processor().getMemory();
+				int vaddr = processor.readRegister(Processor.regBadVAddr);
+				int vpn = vaddr / pageSize;
+				//System.out.println("Handling pageFault for vpn: " + vpn);
+				//printPageTable();
+				//printInvertedTable();
+				if (UserKernel.freePages.size() <= 0) {
+					// use NRU clock algorithm to find page to replace
+					TranslationEntry victimEntry = VMKernel.invertedTable[VMKernel.hand];
+					while(victimEntry.used) {
+						victimEntry.used = false;
+						VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
+						victimEntry = VMKernel.invertedTable[VMKernel.hand];
+					}
+					// evict the victim page to the swap file and mark as invalid
+					if (VMKernel.swapFreePages.size() <= 0) {
+						Lib.debug(dbgProcess, "\tinsufficient space in our swap file!");
+						super.handleException(cause);
+					}
+					int ppn = victimEntry.ppn;
+					int spn = VMKernel.swapFreePages.poll();
+					int paddr = ppn * pageSize;
+					int saddr = spn * pageSize;
+					VMKernel.swapFile.write(saddr, memory, paddr, pageSize);
+					victimEntry.vpn = spn;
+					victimEntry.ppn = -1;
+					victimEntry.valid = false;
+					// our faulted page can now use the freed up memory
+					UserKernel.freePages.add(ppn);
+					VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
+				}
+				// if there is space on phys. memory, load into physical memory
+				boolean isCoff = false;
+				// atomically allocate a free page
+				int freePage = UserKernel.freePages.pop();
+				pageTable[vpn].ppn = freePage;
+				VMKernel.invertedTable[freePage] = pageTable[vpn];
+				// if our page is stored in swap file, load it from there
+				int swapPointer = pageTable[vpn].vpn;
+				if (swapPointer != -1) {
+					byte[] pageData = new byte[pageSize];
+					VMKernel.swapFile.read(swapPointer * pageSize, pageData, 0, pageSize);
+					System.arraycopy(pageData, 0, memory, freePage * pageSize, pageSize);
+					VMKernel.swapFreePages.add(swapPointer);
+					pageTable[vpn].vpn = -1;
+				}
+				else {
+					//if our page matches a coffSection, load it to the coff
+					for (int s = 0; s < coff.getNumSections(); s++) {
+						CoffSection section = coff.getSection(s);
+						for (int i = 0; i < section.getLength(); i++) {
+							if( vpn == section.getFirstVPN() + i ){//coff
+								section.loadPage( i, pageTable[vpn].ppn );
+								isCoff = true;
+							}
+						}
+					}
+					//it's a stack page, 0 fill that physical page
+					if( !isCoff ){
+						//is something in swap file. if so load page from the disk
+						byte[] data = new byte[pageSize];
+						int paddr = pageTable[vpn].ppn * pageSize;
+						//zero out the page in physical memory
+						System.arraycopy( data, 0, memory, paddr, pageSize );
+					}
+				}
+				pageTable[vpn].valid = true;
+				break; 
+										
+		default:
+			System.out.println("in default ");
+			super.handleException(cause);
+			break;
+		}
+	}
+	/**
+	 * add new swap page number to the list.
+	 *  returns an available swap page number
+	 */
+	public int getSPN(){
+	if(spnList.size() == 0){
+		spnSize++;
+		spnList.add(spnSize);
+	}
+	return spnSize;
+}
+
+	public void printPageTable(){
+		System.out.println("Page Table:");
+		for (int i=0; i< pageTable.length; i++) {
+			TranslationEntry entry = pageTable[i];
+			System.out.print("key: " + i);
+			System.out.print(" vpn: " + entry.vpn);
+			System.out.print(" ppn: " + entry.ppn);
+			System.out.print(" valid: " + entry.valid);
+			System.out.print(" readOnly: " + entry.readOnly);
+			System.out.print(" used: " + entry.used);
+			System.out.print(" dirty: " + entry.dirty);
+			System.out.println();
+		}
+	}
+
+	public void printInvertedTable(){
+		System.out.println("Inverted Table:");
+		for (int i=0; i< VMKernel.invertedTable.length; i++) {
+			TranslationEntry entry = VMKernel.invertedTable[i];
+			System.out.print("key: " + i);
+			if(entry != null) {
+				System.out.print(" vpn: " + entry.vpn);
+				System.out.print(" ppn: " + entry.ppn);
+				System.out.print(" valid: " + entry.valid);
+				System.out.print(" readOnly: " + entry.readOnly);
+				System.out.print(" used: " + entry.used);
+				System.out.print(" dirty: " + entry.dirty);
+			} else {
+				System.out.print(" NULL");
+			}
+			System.out.println();
+		}
+	}
+
+	private static final int pageSize = Processor.pageSize;
+
+	private static final char dbgProcess = 'a';
+
+	private static final char dbgVM = 'v';
+
+	private static int spnSize = -1; //increment each time u add new spn. method that does both
+
+	private static LinkedList<Integer> spnList; //if spnList empty add new spn=spnsize
+}
+
+// else evict a memory page using clk and then put our page there
+				/*if( freePages.size() == 0 ){ //NO FREE PHYSICAL PAGES. follow psuedocode.
 					//pick pg to evict: 
 					for( int i = 0; i < physicalPages.size() - 1; i++ ){//full loop clock algo. track translation entry
 					//get part 2 working: set dirty = true anytime u load a page. if below was part 3
@@ -115,68 +242,4 @@ public class VMProcess extends UserProcess {
 						if(hand >= freePages.size()) hand = 0;
 						//else proceed w replacement since original page already in coff  
 					}
-				}
-				int freePage = UserKernel.freePages.pop();
-							pageTable[vpn].ppn = freePage;
-				//loop thru all coff section, see if vpn is in that coff section. if so load from that coff section.
-				for (int s = 0; s < coff.getNumSections(); s++) {
-					CoffSection section = coff.getSection(s);
-					for (int i = 0; i < section.getLength(); i++) {
-
-						if( vpn == section.getFirstVPN() + i ){//coff
-							
-							section.loadPage( i, pageTable[vpn].ppn );
-							pageTable[vpn].valid = true;
-							isCoff = true;
-						}
-					}
-				}
-				if( isCoff == false ){ //it's a stack page, 0 fill that physical page
-					pageTable[vpn].valid = true;
-					//is something in swap file. if so load page from the disk
-					byte[] memory = Machine.processor().getMemory();
-					byte[] data = new byte[pageSize];
-					int paddr = pageTable[vpn].ppn * pageSize;
-					System.arraycopy( memory, paddr, data, 0, pageSize );
-					//zero out pg size elements in that array
-				}
-				break; 
-										
-		default:
-			// System.out.println("in default ");
-			super.handleException(cause);
-			break;
-		}
-	}
-	/**
-	 * add new swap page number to the list.
-	 *  returns an available swap page number
-	 */
-	public int getSPN(){
-	if(spnList.size() == 0){
-		spnSize++;
-		spnList.add(spnSize);
-	}
-	return spnSize;
-}
-
-	private static final int pageSize = Processor.pageSize;
-
-	private static final char dbgProcess = 'a';
-
-	private static final char dbgVM = 'v';
-
-	private static int hand = 0;
-
-	private static LinkedList<TranslationEntry> physicalPages;
-
-	private static OpenFile swapFile;
-
-	private static int spnSize = -1; //increment each time u add new spn. method that does both
-
-	private static LinkedList<Integer> spnList; //if spnList empty add new spn=spnsize
-
-	//changes here
-	// protected TranslationEntry[] invertedPageTable; 
-	//which process the evicted pg base on ppn. belonged to invalidate (set valid=false og translation entry) that pg table entry?
-} //invalidate the evicted pg (already in the table)
+				}*/

@@ -680,7 +680,7 @@ public class UserProcess {
 	 * need to implement this for handleExec
 	 * @return
 	 */
-	private int getProcessID(){
+	protected int getProcessID(){
 		return pid;
 	}
 	/*

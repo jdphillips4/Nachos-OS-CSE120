@@ -120,9 +120,9 @@ public class UserKernel extends ThreadedKernel {
 					shellProgram + ".coff' instead.");
 		    shellProgram += ".coff";
 		    if (!process.execute(shellProgram, new String[] {})) {
-			System.out.println ("Also failed on '" +
-					    shellProgram + "', aborting.");
-			Lib.assertTrue(false);
+				System.out.println ("Also failed on '" +
+							shellProgram + "', aborting.");
+				Lib.assertTrue(false);
 		    }
 
 		}
