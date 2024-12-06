@@ -54,7 +54,6 @@ public class UserProcess {
 		// of file descriptors and throws an exception in
 		// createClassLoader.  Hack around it by hard-coding
 		// creating new processes of the appropriate type.
-
 		if (name.equals ("nachos.userprog.UserProcess")) {
 		    return new UserProcess ();
 		} else if (name.equals ("nachos.vm.VMProcess")) {
@@ -153,6 +152,8 @@ public class UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		//printPageTable();
+
 		// update dirty and used
 		Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 		byte[] memory = Machine.processor().getMemory();
@@ -163,24 +164,57 @@ public class UserProcess {
 		while(read < length) {
 			int vpage = vaddr / pageSize;
 			int voffset = vaddr % pageSize;
+			//System.out.println("Process " + getProcessID() + " acquiring pageLock in rVM!");
+			UserKernel.pageLock.acquire();
 			TranslationEntry entry = pageTable[vpage];
-			int ppn = entry.ppn;
-			if (!entry.valid) return 0;
-			int paddr = ppn * pageSize + voffset;
+			if (entry.ppn == -1) {
+				//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM pageFault!");
+				UserKernel.pageLock.release();
+				Machine.processor().writeRegister(Processor.regCause, Processor.exceptionPageFault);
+				Machine.processor().writeRegister(Processor.regBadVAddr, vaddr);
+				Machine.processor().getExceptionHandler().run();
+                //System.out.println("Process " + getProcessID() + " acquiring pageLock in rVM pageFault!");
+				UserKernel.pageLock.acquire();
+			}
+			if (!entry.valid) {
+				UserKernel.pageLock.release();
+				return 0;
+			}
+			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - read, pageSize - voffset);
-			//Lib.debug(dbgProcess, "vaddr: " + vaddr);
-			//Lib.debug(dbgProcess, "paddr: " + paddr);
+			Lib.debug(dbgProcess, "vaddr: " + vaddr);
+			Lib.debug(dbgProcess, "paddr: " + paddr);
 			try {
 				System.arraycopy(memory, paddr, data, offset + read, amount);
 			} catch (IndexOutOfBoundsException exception) {
+				UserKernel.pageLock.release();
+				System.out.println("OUT OF BOUNDS EXCEPTION: " + exception);
 				return read;
 			}
+			//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM!");
+			UserKernel.pageLock.release();
 			read += amount;
 			vaddr += amount;
 			pageTable[vpage].used = true;
 		}
 		return read;
 	}
+
+	public void printPageTable(){
+        System.out.println("Page Table:");
+        for (int i=0; i< pageTable.length; i++) {
+            TranslationEntry entry = pageTable[i];
+            System.out.print("key: " + i);
+            System.out.print(" vpn: " + entry.vpn);
+            System.out.print(" ppn: " + entry.ppn);
+            System.out.print(" valid: " + entry.valid);
+            System.out.print(" readOnly: " + entry.readOnly);
+            System.out.print(" used: " + entry.used);
+            System.out.print(" dirty: " + entry.dirty);
+            System.out.println();
+        }
+    }
+
 
 	/**
 	 * Transfer all data from the specified array to this process's virtual
@@ -222,18 +256,34 @@ public class UserProcess {
 		while(written < length) {
 			int vpage = vaddr / pageSize;
 			int voffset = vaddr % pageSize;
+			//System.out.println("Process " + getProcessID() + " acquiring pageLock in wVM!");
+			UserKernel.pageLock.acquire();
 			TranslationEntry entry = pageTable[vpage];
-			if (!entry.valid || entry.readOnly) return 0;
-			int ppn = entry.ppn;
-			int paddr = ppn * pageSize + voffset;
+			if (entry.ppn == -1) {
+				//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM pageFault!");
+				UserKernel.pageLock.release();
+				Machine.processor().writeRegister(Processor.regCause, Processor.exceptionPageFault);
+				Machine.processor().writeRegister(Processor.regBadVAddr, vaddr);
+				Machine.processor().getExceptionHandler().run();
+                //System.out.println("Process " + getProcessID() + " acquiring pageLock in wVM pageFault!");
+				UserKernel.pageLock.acquire();
+			}
+			if (!entry.valid || entry.readOnly) {
+				UserKernel.pageLock.release();
+				return 0;
+			}
+			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - written, pageSize - voffset);
 			//Lib.debug(dbgProcess, "write vaddr: " + vaddr);
 			//Lib.debug(dbgProcess, "write paddr: " + paddr);
 			try {
 				System.arraycopy(data, offset + written, memory, paddr, amount);
 			} catch (IndexOutOfBoundsException exception) {
+				UserKernel.pageLock.release();
 				return written;
 			}
+			//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM!");
+			UserKernel.pageLock.release();
 			written += amount;
 			vaddr += amount;
 			pageTable[vpage].used = true;
@@ -361,40 +411,12 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		pageTable = new TranslationEntry[numPages]; //initialize pagetable (virtual) program needs. not the whole memory
-		//map virtual to physical non continous too
-		if( numPages > UserKernel.freePages.size() ){
-			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory");//error if not enough free pages
-			return false;
-		}
-
-		UserKernel.pageLock.acquire(); 
-		// load sections
-		for (int s = 0; s < coff.getNumSections(); s++) {
-			CoffSection section = coff.getSection(s);
-			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
-					+ " section (" + section.getLength() + " pages)");
-			boolean isReadOnly = section.isReadOnly();
-
-			for (int i = 0; i < section.getLength(); i++) {
-				int vpn = section.getFirstVPN() + i;
-
-				// for now, just assume virtual addresses=physical addresses
-				//make it able to split memory
-				// int availPage = UserKernel.freePages.pop();
-				int availPage = UserKernel.freePages.pollLast();
-				pageTable[vpn] = new TranslationEntry(vpn, availPage , true, isReadOnly, false, false);
-				section.loadPage( i, availPage ); //loads into physical memory
-			}
-		}
-		// allocate stack and argument pages
-		//for (int i = numPages - 9; i<numPages; i++) {
-		for (int i = numPages - 1; i >= numPages - 9; i--) {
-			int freePage = UserKernel.freePages.pop();
-			pageTable[i] = new TranslationEntry(i, freePage , true, false, false, false);
-		}
-		UserKernel.pageLock.release();
+		pageTable = new TranslationEntry[numPages];
+        //for loop thru page table not coff sections
+        for (int i = 0; i < numPages; i++){
+            // entry.vpn now stores swap page number (suggested by tips)
+            pageTable[i] = new TranslationEntry(-1, -1, false, false, false, false);
+        }
 		return true;
 	}
 
@@ -402,12 +424,6 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-		UserKernel.pageLock.acquire();
-		for(TranslationEntry entry: pageTable) {
-			// for every virtual page, add its physical page back
-			UserKernel.freePages.add(entry.ppn);
-		}
-		UserKernel.pageLock.release();
 	}
 
 	/**
@@ -635,6 +651,8 @@ public class UserProcess {
 	 */
 	private int handleExec( int a0, int a1, int a2 ){
 		String executableName = readVirtualMemoryString(a0, 256);
+		//String executableName = "swap4.coff";
+		System.out.println("EXECUTABLE NAME: " + executableName);
 		if (executableName == null){
 			Lib.debug(dbgProcess, "handleExec no executable name!");
 			return -1;
@@ -885,5 +903,4 @@ public class UserProcess {
 	protected boolean alive = true; 
     protected int exitStatus;
 	protected UserProcess currentProcess;
-
 }

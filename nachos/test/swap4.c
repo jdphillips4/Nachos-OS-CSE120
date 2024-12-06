@@ -51,6 +51,6 @@ main (int argc, char *argv[])
     validate_buf ();
     validate_buf ();
     validate_buf ();
-    //printf("Does this work? \n");
+    printf("Successful finish of swap 4!\n");
     exit (-1000);
 }
