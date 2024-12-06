@@ -152,8 +152,6 @@ public class UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		//printPageTable();
-
 		// update dirty and used
 		Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 		byte[] memory = Machine.processor().getMemory();
@@ -182,8 +180,6 @@ public class UserProcess {
 			}
 			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - read, pageSize - voffset);
-			Lib.debug(dbgProcess, "vaddr: " + vaddr);
-			Lib.debug(dbgProcess, "paddr: " + paddr);
 			try {
 				System.arraycopy(memory, paddr, data, offset + read, amount);
 			} catch (IndexOutOfBoundsException exception) {
@@ -199,22 +195,6 @@ public class UserProcess {
 		}
 		return read;
 	}
-
-	public void printPageTable(){
-        System.out.println("Page Table:");
-        for (int i=0; i< pageTable.length; i++) {
-            TranslationEntry entry = pageTable[i];
-            System.out.print("key: " + i);
-            System.out.print(" vpn: " + entry.vpn);
-            System.out.print(" ppn: " + entry.ppn);
-            System.out.print(" valid: " + entry.valid);
-            System.out.print(" readOnly: " + entry.readOnly);
-            System.out.print(" used: " + entry.used);
-            System.out.print(" dirty: " + entry.dirty);
-            System.out.println();
-        }
-    }
-
 
 	/**
 	 * Transfer all data from the specified array to this process's virtual
@@ -274,8 +254,6 @@ public class UserProcess {
 			}
 			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - written, pageSize - voffset);
-			//Lib.debug(dbgProcess, "write vaddr: " + vaddr);
-			//Lib.debug(dbgProcess, "write paddr: " + paddr);
 			try {
 				System.arraycopy(data, offset + written, memory, paddr, amount);
 			} catch (IndexOutOfBoundsException exception) {

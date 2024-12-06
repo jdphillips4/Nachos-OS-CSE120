@@ -152,7 +152,6 @@ public class VMProcess extends UserProcess {
                 pageTable[vpn].valid = true;
 				//System.out.println("Process " + getProcessID() + " releasing pageLock in handleException!");
                 UserKernel.pageLock.release();
-                //printPageTable();
                 break;
 
             default:
