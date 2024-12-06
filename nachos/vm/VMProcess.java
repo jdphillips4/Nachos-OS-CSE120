@@ -98,19 +98,26 @@ public class VMProcess extends UserProcess {
                         VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
                         victimEntry = VMKernel.invertedTable[VMKernel.hand];
                     }
-                    // evict the victim page to the swap file and mark as invalid
-                    if (VMKernel.swapFreePages.size() <= 0) {
-                        Lib.debug(dbgProcess, "\tinsufficient space in our swap file!");
-                        super.handleException(cause);
-                    }
                     int ppn = victimEntry.ppn;
-                    int spn = VMKernel.swapFreePages.poll();
-                    int paddr = ppn * pageSize;
-                    int saddr = spn * pageSize;
-                    VMKernel.swapFile.write(saddr, memory, paddr, pageSize);
-                    victimEntry.vpn = spn;
-                    victimEntry.ppn = -1;
-                    victimEntry.valid = false;
+					//only need to use swap file if its dirty
+					if (victimEntry.dirty) {
+						// evict the victim page to the swap file and mark as invalid
+						if (VMKernel.swapFreePages.size() <= 0) {
+							Lib.debug(dbgProcess, "\tinsufficient space in our swap file!");
+							super.handleException(cause);
+						}
+						int spn = VMKernel.swapFreePages.poll();
+						int paddr = ppn * pageSize;
+						int saddr = spn * pageSize;
+                        //Lib.debug(dbgVM, "Swapping out page " + victimEntry.ppn + " to swapFile at " + saddr);
+						VMKernel.swapFile.write(saddr, memory, paddr, pageSize);
+                        Machine.incrNumSwapWrites();
+						victimEntry.vpn = spn;
+                    }
+					victimEntry.ppn = -1;
+                    victimEntry.valid = false; //set this to false no matter if its dirty or not
+                    //victimEntry.vpn = -1;
+
                     // our faulted page can now use the freed up memory
                     UserKernel.freePages.addFirst(ppn);
                     VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
@@ -125,6 +132,7 @@ public class VMProcess extends UserProcess {
                 if (swapPointer != -1) {
                     byte[] pageData = new byte[pageSize];
                     VMKernel.swapFile.read(swapPointer * pageSize, pageData, 0, pageSize);
+                    Machine.incrNumSwapReads();
                     System.arraycopy(pageData, 0, memory, freePage * pageSize, pageSize);
                     VMKernel.swapFreePages.addFirst(swapPointer);
                     pageTable[vpn].vpn = -1;
@@ -138,6 +146,7 @@ public class VMProcess extends UserProcess {
                             if( vpn == section.getFirstVPN() + i ){//coff
                                 section.loadPage( i, pageTable[vpn].ppn );
                                 isCoff = true;
+                                Machine.incrNumCOFFReads();
                             }
                         }
                     }
@@ -206,8 +215,3 @@ public class VMProcess extends UserProcess {
 
     private static final char dbgVM = 'v';
 }
-
-
-
-
-

@@ -27,6 +27,9 @@ public class VMKernel extends UserKernel {
 		numPhysPages = Machine.processor().getNumPhysPages();
 		swapFile = ThreadedKernel.fileSystem.open("swapFile.txt", true);
 		invertedTable = new TranslationEntry[numPhysPages];
+		for (int i = 0; i < numPhysPages; i++) {
+    		invertedTable[i] = new TranslationEntry(-1, i, false, false, false, false); // int vpn, int ppn, boolean valid, boolean readOnly, boolean used, boolean dirty
+		}
 		hand = 0;
 		for(int i=0; i<numSwapPages; i++) {
 			swapFreePages.add(i);
