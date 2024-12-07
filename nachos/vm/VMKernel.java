@@ -69,7 +69,7 @@ public class VMKernel extends UserKernel {
 	// MAY WANT TO LOCK THIS
 	public static LinkedList<Integer> swapFreePages;
 
-	private int numSwapPages = 100;
+	private int numSwapPages = 2048;
 
 	// maps table[ppn] = TranslationEntry
 	public static TranslationEntry[] invertedTable;
