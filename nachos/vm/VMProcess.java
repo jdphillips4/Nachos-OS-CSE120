@@ -109,7 +109,7 @@ public class VMProcess extends UserProcess {
 							super.handleException(cause);
 						}
 
-                        VMKernel.pinPage(ppn); //dont want it evicted when lock is released
+                        UserKernel.pinPage(ppn); //dont want it evicted when lock is released
                         UserKernel.pageLock.release(); //release for IO
 
 						int spn = VMKernel.swapFreePages.poll();
@@ -121,11 +121,10 @@ public class VMProcess extends UserProcess {
 						victimEntry.vpn = spn;
 
                         UserKernel.pageLock.acquire(); //acquire after IO
-                        VMKernel.unpinPage(ppn);
+                        UserKernel.unpinPage(ppn);
                     }
 					victimEntry.ppn = -1;
                     victimEntry.valid = false; //set this to false no matter if its dirty or not
-                    //victimEntry.vpn = -1;
 
                     // our faulted page can now use the freed up memory
                     UserKernel.freePages.addFirst(ppn);
@@ -141,7 +140,7 @@ public class VMProcess extends UserProcess {
                 if (swapPointer != -1) {
                     byte[] pageData = new byte[pageSize];
 
-                    VMKernel.pinPage(freePage);
+                    UserKernel.pinPage(freePage);
                     UserKernel.pageLock.release(); //realease for IO
 
                     VMKernel.swapFile.read(swapPointer * pageSize, pageData, 0, pageSize);
@@ -151,7 +150,7 @@ public class VMProcess extends UserProcess {
                     pageTable[vpn].vpn = -1;
 
                     UserKernel.pageLock.acquire(); //acquire after IO
-                    VMKernel.unpinPage(freePage);
+                    UserKernel.unpinPage(freePage);
                 }
                 // first time initializing this page
                 else {
@@ -170,7 +169,6 @@ public class VMProcess extends UserProcess {
                     if( !isCoff ){
                         byte[] data = new byte[pageSize];
                         int paddr = pageTable[vpn].ppn * pageSize;
-                        //zero out the page in physical memory
                         System.arraycopy( data, 0, memory, paddr, pageSize );
                     }
                 }

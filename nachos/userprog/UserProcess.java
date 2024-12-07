@@ -178,6 +178,8 @@ public class UserProcess {
 				UserKernel.pageLock.release();
 				return 0;
 			}
+			UserKernel.pinPage(entry.ppn);
+			UserKernel.pageLock.release();
 			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - read, pageSize - voffset);
 			try {
@@ -188,10 +190,10 @@ public class UserProcess {
 				return read;
 			}
 			//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM!");
-			UserKernel.pageLock.release();
 			read += amount;
 			vaddr += amount;
 			pageTable[vpage].used = true;
+			UserKernel.unpinPage(entry.ppn);
 		}
 		return read;
 	}
@@ -252,6 +254,8 @@ public class UserProcess {
 				UserKernel.pageLock.release();
 				return 0;
 			}
+			UserKernel.pinPage(entry.ppn);
+			UserKernel.pageLock.release();
 			int paddr = entry.ppn * pageSize + voffset;
 			int amount = Math.min(length - written, pageSize - voffset);
 			try {
@@ -261,11 +265,11 @@ public class UserProcess {
 				return written;
 			}
 			//System.out.println("Process " + getProcessID() + " releasing pageLock in wVM!");
-			UserKernel.pageLock.release();
 			written += amount;
 			vaddr += amount;
 			pageTable[vpage].used = true;
 			pageTable[vpage].dirty = true;
+			UserKernel.unpinPage(entry.ppn);
 		}
 		return written;
 	}

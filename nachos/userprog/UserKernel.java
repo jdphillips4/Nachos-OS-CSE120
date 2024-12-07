@@ -1,6 +1,7 @@
 package nachos.userprog;
 
 import java.util.LinkedList;
+import java.util.HashSet;
 
 import nachos.machine.*;
 import nachos.threads.*;
@@ -27,6 +28,7 @@ public class UserKernel extends ThreadedKernel {
 		// page Lock stuff
 		pageLock = new Lock();
 		freePages = new LinkedList<Integer>();
+		pinnedPages = new HashSet<Integer>();
 
 		// initialize our free pages. new way: page table (virtual) only has pages it needs
 		int numPhysPages = Machine.processor().getNumPhysPages();
@@ -148,4 +150,18 @@ public class UserKernel extends ThreadedKernel {
 	public static Lock pageLock;
 
 	public static int nextID = 0; //stored in kernel, need to increment everytime
+
+	public static HashSet<Integer> pinnedPages;
+
+	public static boolean isPinned(int ppn) {
+    	return pinnedPages.contains(ppn);
+	}
+
+	public static void pinPage(int ppn) {
+		pinnedPages.add(ppn);
+	}
+
+	public static void unpinPage(int ppn) {
+		pinnedPages.remove(ppn);
+	}
 }
