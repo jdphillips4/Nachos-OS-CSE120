@@ -1,0 +1,6 @@
+Jordan Phillips: I worked on parts 3 and 4 imlementing the use of the dirty bit to determine if a page needs to be written to swap or not.
+I also worked on pinning pages so they aren't evicted when the locks are released for IO operations which I also implemented. I also added 
+the functions for nachos to track swap writes and coff reads. 
+
+Kane Li: I mainly worked on implementing swapFile functionality and modifying read/write VirtualMemory to work with the new setup. I ensured rVM and wVM worked by using exec names instead of having to hardcode, as well as only allowing 2 memory pages per process. I also wrote the 2 tests, multi1 and multi2, to ensure that  multiple processes wouldn't interfere with paging, and that our OS was robust to a variety of context switch timings and types of operations.
+
