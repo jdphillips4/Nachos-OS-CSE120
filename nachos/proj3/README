@@ -4,3 +4,4 @@ the functions for nachos to track swap writes and coff reads.
 
 Kane Li: I mainly worked on implementing swapFile functionality and modifying read/write VirtualMemory to work with the new setup. I ensured rVM and wVM worked by using exec names instead of having to hardcode, as well as only allowing 2 memory pages per process. I also wrote the 2 tests, multi1 and multi2, to ensure that  multiple processes wouldn't interfere with paging, and that our OS was robust to a variety of context switch timings and types of operations.
 
+Sarena Pham: I worked on part 1 and 2. In loadSections I initialized the pte's according to project 3 and removing the loading process in there. In handleException we handle page fault exception. If there's not enough free pages, swap a physical page to disk and use it. This is where we actually load pages by demand, using NRU. Else there's enough free pages so decide to load from the coff section or do 0 filling if its a stack page.
