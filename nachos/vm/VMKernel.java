@@ -1,6 +1,8 @@
 package nachos.vm;
 
 import java.util.LinkedList;
+import java.util.Set;
+import java.util.HashSet;
 
 import nachos.machine.*;
 import nachos.threads.*;
@@ -34,6 +36,7 @@ public class VMKernel extends UserKernel {
 		for(int i=0; i<numSwapPages; i++) {
 			swapFreePages.add(i);
 		}
+		pinnedPages = new HashSet<>();
 	}
 
 	/**
@@ -76,4 +79,18 @@ public class VMKernel extends UserKernel {
 	public static int hand;
 
 	public static int numPhysPages;
+
+	public static Set<Integer> pinnedPages;
+
+	public static boolean isPinned(int ppn) {
+    	return pinnedPages.contains(ppn);
+	}
+
+	public static void pinPage(int ppn) {
+		pinnedPages.add(ppn);
+	}
+
+	public static void unpinPage(int ppn) {
+		pinnedPages.remove(ppn);
+	}
 }

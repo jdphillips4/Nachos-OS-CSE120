@@ -6,6 +6,8 @@ import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
 import java.util.LinkedList;
+import java.util.Set;
+import java.util.HashSet;
 
 
 /**
@@ -93,7 +95,7 @@ public class VMProcess extends UserProcess {
                 if (UserKernel.freePages.size() <= 0) {
                     // use NRU clock algorithm to find page to replace
                     TranslationEntry victimEntry = VMKernel.invertedTable[VMKernel.hand];
-                    while(victimEntry.used) {
+                    while(victimEntry.used || VMKernel.isPinned(victimEntry.ppn)) {
                         victimEntry.used = false;
                         VMKernel.hand = (VMKernel.hand + 1) % VMKernel.numPhysPages;
                         victimEntry = VMKernel.invertedTable[VMKernel.hand];
@@ -106,6 +108,10 @@ public class VMProcess extends UserProcess {
 							Lib.debug(dbgProcess, "\tinsufficient space in our swap file!");
 							super.handleException(cause);
 						}
+
+                        VMKernel.pinPage(ppn); //dont want it evicted when lock is released
+                        UserKernel.pageLock.release(); //release for IO
+
 						int spn = VMKernel.swapFreePages.poll();
 						int paddr = ppn * pageSize;
 						int saddr = spn * pageSize;
@@ -113,6 +119,9 @@ public class VMProcess extends UserProcess {
 						VMKernel.swapFile.write(saddr, memory, paddr, pageSize);
                         Machine.incrNumSwapWrites();
 						victimEntry.vpn = spn;
+
+                        UserKernel.pageLock.acquire(); //acquire after IO
+                        VMKernel.unpinPage(ppn);
                     }
 					victimEntry.ppn = -1;
                     victimEntry.valid = false; //set this to false no matter if its dirty or not
@@ -131,11 +140,18 @@ public class VMProcess extends UserProcess {
                 int swapPointer = pageTable[vpn].vpn;
                 if (swapPointer != -1) {
                     byte[] pageData = new byte[pageSize];
+
+                    VMKernel.pinPage(freePage);
+                    UserKernel.pageLock.release(); //realease for IO
+
                     VMKernel.swapFile.read(swapPointer * pageSize, pageData, 0, pageSize);
                     Machine.incrNumSwapReads();
                     System.arraycopy(pageData, 0, memory, freePage * pageSize, pageSize);
                     VMKernel.swapFreePages.addFirst(swapPointer);
                     pageTable[vpn].vpn = -1;
+
+                    UserKernel.pageLock.acquire(); //acquire after IO
+                    VMKernel.unpinPage(freePage);
                 }
                 // first time initializing this page
                 else {
